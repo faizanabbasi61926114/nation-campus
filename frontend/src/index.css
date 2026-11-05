@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@theme {
+  /* Nation Campus identity: heath green scale with a warm gold accent. */
+  --color-brand-50: #edf4ef;
+  --color-brand-100: #d8e7dc;
+  --color-brand-200: #b6d2bf;
+  --color-brand-300: #8bb59c;
+  --color-brand-400: #5f957c;
+  --color-brand-500: #397763;
+  --color-brand-600: #2d6653;
+  --color-brand-700: #245442;
+  --color-brand-800: #1e4638;
+  --color-brand-900: #193c32;
+  --color-brand-950: #0f2620;
+
+  --color-gold-50: #fdf9ef;
+  --color-gold-100: #fbf1da;
+  --color-gold-200: #f7e2b2;
+  --color-gold-300: #f1c66d;
+  --color-gold-400: #e2ac46;
+  --color-gold-500: #c1832a;
+
+  /* Semantic surfaces so pages stop hard-coding hex values. */
+  --color-canvas: #f6f6f1;
+  --color-paper: #ffffff;
+  --color-line: #e5e5dc;
+  --color-line-strong: #d3d4c7;
+  --color-ink: #1c2b26;
+  --color-ink-soft: #55665e;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --shadow-card: 0 1px 2px rgba(28, 43, 38, 0.04), 0 1px 8px rgba(28, 43, 38, 0.04);
+  --shadow-lift: 0 14px 30px -16px rgba(28, 43, 38, 0.3), 0 2px 6px rgba(28, 43, 38, 0.05);
+  --shadow-pop: 0 28px 64px -20px rgba(15, 38, 32, 0.42);
+
+  --animate-fade-up: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.22s ease-out both;
+  --animate-pop-in: pop-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-in: slide-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-toast-in: toast-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes slide-in {
+    from { transform: translateX(-100%); }
+    to { transform: none; }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+  font-family: var(--font-sans);
+  background-image:
+    radial-gradient(58rem 30rem at 108% -14rem, rgba(57, 119, 99, 0.09), transparent 65%),
+    radial-gradient(46rem 26rem at -12% -6rem, rgba(241, 198, 109, 0.12), transparent 60%);
+  background-attachment: fixed;
+}
+
+h1, h2, h3 { @apply tracking-tight; }
+
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid rgb(57 119 99 / 38%);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #d8e7dc;
+  color: #193c32;
+}
+
+/* Numeric columns read better tabular than proportional. */
+.nums { font-variant-numeric: tabular-nums; }
+
+/* Quiet scrollbars inside table scrollers, the sidebar and modals. */
+.scroll-slim { scrollbar-width: thin; scrollbar-color: rgb(28 43 38 / 22%) transparent; }
+.scroll-slim::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-slim::-webkit-scrollbar-track { background: transparent; }
+.scroll-slim::-webkit-scrollbar-thumb { background: rgb(28 43 38 / 18%); border-radius: 9999px; }
+.scroll-slim::-webkit-scrollbar-thumb:hover { background: rgb(28 43 38 / 32%); }
+
+.skeleton {
+  background: linear-gradient(100deg, #ececE4 30%, #f7f7f1 50%, #ececE4 70%);
+  background-size: 220% 100%;
+  animation: skeleton 1.3s ease-in-out infinite;
+}
+@keyframes skeleton {
+  from { background-position: 140% 0; }
+  to { background-position: -40% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media print {
+  aside, .no-print { display: none !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  body { background: #fff; }
+  [data-print-block] { break-inside: avoid; box-shadow: none !important; }
+}

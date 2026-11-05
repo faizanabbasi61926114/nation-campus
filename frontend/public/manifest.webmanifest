@@ -1,0 +1,25 @@
+{
+  "name": "Nation Campus — School & Family App",
+  "short_name": "Nation Campus",
+  "description": "Class teachers take roll and enter marks; parents follow attendance, fees and results for their own children.",
+  "id": "/app",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "lang": "en-PK",
+  "dir": "ltr",
+  "categories": ["education", "productivity"],
+  "background_color": "#f6f6f1",
+  "theme_color": "#245442",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "/icons/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "My children", "short_name": "Children", "url": "/app", "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "Messages", "short_name": "Inbox", "url": "/app/messages", "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }] }
+  ]
+}
