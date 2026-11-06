@@ -386,7 +386,7 @@ export default function Dashboard() {
               ...(s.accounts ? ([
                 ['Income this month', fmtPKR(s.accounts.income_this_month)],
                 ['Expense this month', fmtPKR(s.accounts.expense_this_month)],
-                ['Net', <span className={s.accounts.net_this_month < 0 ? 'text-rose-600' : 'text-brand-700'}>{fmtPKR(s.accounts.net_this_month)}</span>],
+                ['Net', <span key="net" className={s.accounts.net_this_month < 0 ? 'text-rose-600' : 'text-brand-700'}>{fmtPKR(s.accounts.net_this_month)}</span>],
               ] as Array<[string, ReactNode]>) : []),
               ...(s.payroll?.current ? ([[`Payroll ${fmtDate(s.payroll.current.month)}`, <><Status value={s.payroll.current.status} /> · {fmtPKR(s.payroll.current.net)}</>]] as Array<[string, ReactNode]>) : []),
             ]} />

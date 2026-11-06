@@ -1,4 +1,4 @@
-import type { Tone } from '../components/ui'
+import type { Tone } from '../components/tones'
 
 /**
  * Plain-English names for stored vocabulary values, plus one colour language for the whole app:

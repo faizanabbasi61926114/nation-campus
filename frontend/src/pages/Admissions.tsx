@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, apiError } from '../lib/api'
 import { useApi } from '../lib/hooks'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 import { IconAdmissions, IconPlus } from '../components/icons'
 import { label } from '../lib/labels'
 import { Btn, Empty, ErrorNote, Field, Modal, PageHeader, Status, Table, Tabs, Td, Th, inputCls, selectCls } from '../components/ui'

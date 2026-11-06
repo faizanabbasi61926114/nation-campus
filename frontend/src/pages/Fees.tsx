@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { monthISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDate, fmtPKR, hasPerm, type Paginated } from '../lib/types'
@@ -189,7 +190,7 @@ function PaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: () => v
 function GenerateModal({ onClose }: { onClose: () => void }) {
   const formRef = useRef<HTMLFormElement>(null)
   const { data: structures } = useApi<{ data: Structure[] }>('/fee-structures')
-  const [form, setForm] = useState({ fee_structure_id: '', session_month: new Date().toISOString().slice(0, 7) })
+  const [form, setForm] = useState(() => ({ fee_structure_id: '', session_month: monthISO() }))
   const [err, setErr] = useState('')
   const [done, setDone] = useState('')
 

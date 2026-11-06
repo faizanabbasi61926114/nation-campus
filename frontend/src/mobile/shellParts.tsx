@@ -1,18 +1,8 @@
-import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
+import { type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Skeleton } from '../components/ui'
 import { IconRefresh } from '../components/icons'
-
-/** Pages listen for this so the header's refresh button reloads whatever is on screen. */
-export const REFRESH_EVENT = 'cms:mobile-refresh'
-
-export function useReloadOnRefresh(reload: () => void) {
-  useEffect(() => {
-    const handler = () => reload()
-    window.addEventListener(REFRESH_EVENT, handler)
-    return () => window.removeEventListener(REFRESH_EVENT, handler)
-  }, [reload])
-}
+import { REFRESH_EVENT } from './refresh'
 
 export function RefreshButton() {
   const loc = useLocation()
@@ -32,12 +22,6 @@ export function IconOnly({ label, onClick, children }: { label: string; onClick?
       {children}
     </button>
   )
-}
-
-/** The tab that owns the current path, including the detail screens hanging off a tab. */
-export function tabIsActive(isActive: boolean, path: string, to: string): boolean {
-  if (isActive) return true
-  return to === '/app' && path.startsWith('/app/child')
 }
 
 export function Metric({ label, value, sub, tone = 'slate' }: {

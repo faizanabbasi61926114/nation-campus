@@ -23,7 +23,7 @@ interface NavGroup { title: string; items: NavItem[] }
  * `mod` ties an entry to an institution type: a Montessori campus has no boarding house, so the
  * hostel should not be a dead link there. See lib/schoolTypes.
  */
-export const NAV: NavGroup[] = [
+const NAV: NavGroup[] = [
   { title: 'Overview', items: [
     { to: '/', label: 'Dashboard', perm: 'dashboard.view', icon: IconDashboard },
     { to: '/reports', label: 'Reports', perm: 'reports.view', icon: IconReport },

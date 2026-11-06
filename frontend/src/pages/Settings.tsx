@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api, apiError } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
@@ -105,7 +105,13 @@ export default function Settings() {
   const [newKey, setNewKey] = useState('')
   const [newVal, setNewVal] = useState('')
   const [err, setErr] = useState('')
-  useEffect(() => { setEdits({}) }, [data])
+  // Tracking the load itself, rather than effecting on it, means a reloaded
+  // settings table never renders one frame still showing the discarded edits.
+  const [loaded, setLoaded] = useState(data)
+  if (loaded !== data) {
+    setLoaded(data)
+    setEdits({})
+  }
 
   const rows = useMemo(() => Object.entries(data?.data ?? {}) as Array<[string, SettingRow]>, [data])
   const canEdit = hasPerm(user, 'settings.manage') || hasPerm(user, 'settings.manage_campus')

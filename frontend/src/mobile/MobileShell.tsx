@@ -6,7 +6,8 @@ import { label } from '../lib/labels'
 import { useAuth } from '../store/auth'
 import { Avatar, ErrorNote } from '../components/ui'
 import { Toaster } from '../components/Toast'
-import { IconOnly, RefreshButton, tabIsActive } from './shellParts'
+import { ConfirmHost } from '../components/Confirm'
+import { IconOnly, RefreshButton } from './shellParts'
 import { mobileAudience } from './roles'
 import {
   IconAnnouncements, IconAttendance, IconChevronLeft, IconDashboard, IconExams,
@@ -40,6 +41,12 @@ const TITLES: Record<string, string> = {
   '/app/me': 'Account',
 }
 
+/** The tab that owns the current path, including the detail screens hanging off a tab. */
+function tabIsActive(isActive: boolean, path: string, to: string): boolean {
+  if (isActive) return true
+  return to === '/app' && path.startsWith('/app/child')
+}
+
 export default function MobileShell() {
   const { user, loading, fetchMe } = useAuth()
   const audience = mobileAudience(user)
@@ -71,6 +78,7 @@ export default function MobileShell() {
   return (
     <div className="min-h-screen bg-canvas">
       <Toaster />
+      <ConfirmHost />
       <div className="mx-auto flex min-h-screen w-full max-w-[38rem] flex-col">
         <header className="sticky top-0 z-30 border-b border-line/80 bg-white/72 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
           <div className="flex items-center gap-2.5 px-4 py-3">

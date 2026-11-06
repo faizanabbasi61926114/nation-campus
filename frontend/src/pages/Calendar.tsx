@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDate, hasPerm } from '../lib/types'
 import { label, tone as toneOf } from '../lib/labels'
-import { toast } from '../components/Toast'
-import { askConfirm } from '../components/Confirm'
+import { toast } from '../store/toasts'
+import { askConfirm } from '../store/confirm'
 import { IconAlert, IconCampuses, IconChevronLeft, IconChevronRight, IconPlus, IconTimetable, IconTrash } from '../components/icons'
 import {
-  Badge, Btn, Card, Empty, ErrorNote, Field, Modal, Notice, PageHeader, StatCard, Status, Toolbar, toneFor,
+  Badge, Btn, Card, Empty, ErrorNote, Field, Modal, Notice, PageHeader, StatCard, Status, Toolbar,
   inputCls, selectCls,
 } from '../components/ui'
+import { toneFor } from '../components/tones'
 
 const TYPES = ['holiday', 'closure', 'exam', 'ptm', 'event', 'meeting', 'vacation']
 const AUDIENCES = ['all', 'students', 'faculty', 'staff']
@@ -36,9 +38,6 @@ interface Draft {
   audience: string; description: string; attendance: boolean; campus_id: string
 }
 
-/** UTC keeps a month calculation independent of the browser's own offset. */
-const ymd = (d: Date) => d.toISOString().slice(0, 10)
-
 export default function Calendar() {
   const { user, campusId } = useAuth()
   const canManage = hasPerm(user, 'calendar.manage')
@@ -60,7 +59,7 @@ export default function Calendar() {
   const rows = data?.data ?? []
   const stats = summaryData?.data
   const campuses = campusData?.data ?? []
-  const today = stats?.today ?? ymd(new Date())
+  const today = stats?.today ?? todayISO()
   // An organization-wide event can only be raised while no single campus is in scope.
   const wideScope = !campusId
 

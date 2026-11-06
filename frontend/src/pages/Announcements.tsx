@@ -6,7 +6,7 @@ import { hasPerm } from '../lib/types'
 import { IconAnnouncements, IconPlus } from '../components/icons'
 import { Btn, Card, Empty, ErrorNote, Field, Loading, Modal, PageHeader, Status, inputCls, selectCls } from '../components/ui'
 import { label } from '../lib/labels'
-import { askConfirm } from '../components/Confirm'
+import { askConfirm } from '../store/confirm'
 
 interface Announcement {
   id: number

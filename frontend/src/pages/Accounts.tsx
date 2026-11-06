@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDate, fmtPKR, hasPerm, type Paginated } from '../lib/types'
 import { label } from '../lib/labels'
 import { IconAccounts, IconArrowRight, IconCheck, IconPlus, IconReport } from '../components/icons'
 import { Badge, Btn, Card, Empty, ErrorNote, Field, Modal, Notice, PageHeader, Pagination, StatCard, Status, Table, Tabs, Td, Th, Toolbar, inputCls, selectCls } from '../components/ui'
-import { askConfirm } from '../components/Confirm'
+import { askConfirm } from '../store/confirm'
 
 interface ChartAccount {
   id: number; code: string; name: string; type: string; is_system: boolean; is_active: boolean
@@ -325,7 +326,7 @@ function FragmentRow({ children }: { children: React.ReactNode }) {
 
 function VoucherModal({ accounts, onClose }: { accounts: ChartAccount[]; onClose: () => void }) {
   const formRef = useRef<HTMLFormElement>(null)
-  const [form, setForm] = useState({ voucher_date: new Date().toISOString().slice(0, 10), type: 'payment', narrative: '', remarks: '' })
+  const [form, setForm] = useState(() => ({ voucher_date: todayISO(), type: 'payment', narrative: '', remarks: '' }))
   const [lines, setLines] = useState([{ account_id: '', debit: '', credit: '', memo: '' }, { account_id: '', debit: '', credit: '', memo: '' }])
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
@@ -362,7 +363,7 @@ function VoucherModal({ accounts, onClose }: { accounts: ChartAccount[]; onClose
       </>}>
       <form ref={formRef} onSubmit={submit} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Voucher date"><input className={inputCls} type="date" max={new Date().toISOString().slice(0, 10)} value={form.voucher_date} onChange={(e) => setForm({ ...form, voucher_date: e.target.value })} /></Field>
+          <Field label="Voucher date"><input className={inputCls} type="date" max={todayISO()} value={form.voucher_date} onChange={(e) => setForm({ ...form, voucher_date: e.target.value })} /></Field>
           <Field label="Type">
             <select className={selectCls} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
               {VOUCHER_TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}

@@ -1,18 +1,30 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api, apiError } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { fmtDate } from '../lib/types'
 import { Screen } from './MobileShell'
-import { DockBar, ListSkeleton, Segmented, useReloadOnRefresh } from './shellParts'
+import { DockBar, ListSkeleton, Segmented } from './shellParts'
+import { useReloadOnRefresh } from './refresh'
 import { Btn, Card, Empty } from '../components/ui'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 
 interface ExamLite { id: number; name: string; status: string; start_date: string }
 interface SubjectRow { id: number; max_marks: number; pass_marks: number; subject: { id: number; name: string } | null }
 interface StudentRow {
   id: number; roll_no: string | null; first_name: string; last_name: string
   marks: Record<string, { marks_obtained: number | null; is_absent: boolean }>
+}
+
+type Mark = { marks: string; absent: boolean }
+
+/** The saved marks of one paper, as the inputs want them. */
+const seedMarks = (subject: SubjectRow | undefined, students: StudentRow[]): Record<number, Mark> => {
+  if (!subject) return {}
+  return Object.fromEntries(students.map((st) => {
+    const m = st.marks[String(subject.id)]
+    return [st.id, { marks: m?.marks_obtained != null ? String(m.marks_obtained) : '', absent: !!m?.is_absent }]
+  }))
 }
 
 export default function MarksEntry() {
@@ -32,19 +44,19 @@ export default function MarksEntry() {
   const subjects = roster.data?.data.exam.subjects ?? []
   const students = roster.data?.data.students ?? []
   const [subjectKey, setSubjectKey] = useState('')
-  const [values, setValues] = useState<Record<number, { marks: string; absent: boolean }>>({})
   const [saving, setSaving] = useState(false)
 
   const subject = subjects.find((s) => String(s.id) === subjectKey) ?? subjects[0]
 
-  // Existing marks seed the inputs whenever the sheet changes.
-  useEffect(() => {
-    if (!subject) return setValues({})
-    setValues(Object.fromEntries(students.map((st) => {
-      const m = subject && st.marks[String(subject.id)]
-      return [st.id, { marks: m?.marks_obtained != null ? String(m.marks_obtained) : '', absent: !!m?.is_absent }]
-    })))
-  }, [examId, sectionId, subject?.id, roster.data]) // eslint-disable-line
+  // Existing marks seed the inputs. The sheet is tracked alongside the draft so a
+  // new paper resets during render, without first painting the old marks.
+  const sheet = `${examId}|${sectionId}|${subject?.id ?? ''}|${roster.data ? 1 : 0}`
+  const [values, setValues] = useState<Record<number, Mark>>({})
+  const [seeded, setSeeded] = useState('')
+  if (seeded !== sheet) {
+    setSeeded(sheet)
+    setValues(seedMarks(subject, students))
+  }
 
   async function save() {
     if (!subject) return

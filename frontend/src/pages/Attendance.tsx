@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { monthISO, todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 import { IconAttendance } from '../components/icons'
 import { label } from '../lib/labels'
-import { Btn, Empty, Notice, PageHeader, Status, StatusDot, Table, Tabs, Td, Th, Toolbar, inputCls, selectCls, type Tone } from '../components/ui'
+import { Btn, Empty, Notice, PageHeader, Status, StatusDot, Table, Tabs, Td, Th, Toolbar, inputCls, selectCls } from '../components/ui'
+import { type Tone } from '../components/tones'
 
 interface RosterRow {
   id: number; first_name: string; last_name?: string; roll_no?: string | null
@@ -32,8 +34,8 @@ export default function Attendance() {
   const campusSelected = !!localStorage.getItem('cms_campus')
   const [tab, setTab] = useState<'mark' | 'monthly'>('mark')
   const [subjectType, setSubjectType] = useState<'student' | 'staff'>('student')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [date, setDate] = useState(todayISO)
+  const [month, setMonth] = useState(monthISO)
 
   const { data: sections } = useApi<{ data: { id: number; name: string; school_class?: { name: string } }[] }>('/sections')
   const [sectionId, setSectionId] = useState<number | null>(null)
@@ -57,11 +59,8 @@ export default function Attendance() {
   const [draft, setDraft] = useState<Record<number, string>>({})
   const [saving, setSaving] = useState(false)
   const rows = roster?.data ?? []
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {}
-    for (const r of rows) { const s = draft[r.id] ?? r.status; if (s) c[s] = (c[s] ?? 0) + 1 }
-    return c
-  }, [rows, draft])
+  const counts: Record<string, number> = {}
+  for (const r of rows) { const s = draft[r.id] ?? r.status; if (s) counts[s] = (counts[s] ?? 0) + 1 }
 
   async function save() {
     const records = rows
@@ -101,7 +100,7 @@ export default function Attendance() {
         {tab === 'mark'
           ? (
             <div className="w-44">
-              <input type="date" className={inputCls} aria-label="Register date" value={date} max={new Date().toISOString().slice(0, 10)} onChange={(e) => { setDate(e.target.value); setDraft({}) }} />
+              <input type="date" className={inputCls} aria-label="Register date" value={date} max={todayISO()} onChange={(e) => { setDate(e.target.value); setDraft({}) }} />
             </div>
           )
           : (

@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { api, apiError } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { Screen } from './MobileShell'
-import { Bar, DockBar, ListSkeleton, Segmented, useReloadOnRefresh } from './shellParts'
+import { Bar, DockBar, ListSkeleton, Segmented } from './shellParts'
+import { useReloadOnRefresh } from './refresh'
 import { Btn, Card, Empty } from '../components/ui'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 
 interface RosterRow { id: number; roll_no: string | null; first_name: string; last_name: string; status: string | null }
 interface MyClass {
@@ -31,7 +32,6 @@ export default function RollCall() {
   const sectionId = Number(sp.get('section')) || sections[0]?.id || 0
   const period = Number(sp.get('period') ?? 0)
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'))
-  const [picks, setPicks] = useState<Record<number, string>>({})
 
   const roster = useApi<{ data: RosterRow[] }>(
     sectionId ? `/attendance/roster?date=${date}&subject_type=student&section_id=${sectionId}&period_no=${period}` : null,
@@ -39,7 +39,16 @@ export default function RollCall() {
   useReloadOnRefresh(roster.reload)
 
   const rows = roster.data?.data ?? []
-  useEffect(() => { setPicks({}) }, [date, sectionId, period]) // a new sheet starts blank
+
+  // A new sheet starts blank. Compared during render rather than in an effect so
+  // the blank sheet is what React commits, with no extra paint of the old marks.
+  const sheet = `${date}|${sectionId}|${period}`
+  const [picks, setPicks] = useState<Record<number, string>>({})
+  const [picksSheet, setPicksSheet] = useState(sheet)
+  if (picksSheet !== sheet) {
+    setPicksSheet(sheet)
+    setPicks({})
+  }
 
   const section = sections.find((s) => s.id === sectionId)
   const periods = (mine.data?.data.periods ?? []).filter((p) => p.section_id === sectionId)

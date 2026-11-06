@@ -6,9 +6,10 @@ import { useApi } from '../lib/hooks'
 import { hasPerm, type Paginated } from '../lib/types'
 import { useAuth } from '../store/auth'
 import { Screen } from './MobileShell'
-import { DockBar, ListSkeleton, Segmented, useReloadOnRefresh } from './shellParts'
+import { DockBar, ListSkeleton, Segmented } from './shellParts'
+import { useReloadOnRefresh } from './refresh'
 import { Btn, Card, Empty } from '../components/ui'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 import { IconChevronRight, IconInbox } from '../components/icons'
 
 interface Thread {

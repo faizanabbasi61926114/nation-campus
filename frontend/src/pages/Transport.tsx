@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtPKR, hasPerm, type Paginated } from '../lib/types'
 import { label } from '../lib/labels'
-import { toast } from '../components/Toast'
-import { askConfirm } from '../components/Confirm'
+import { toast } from '../store/toasts'
+import { askConfirm } from '../store/confirm'
 import {
   IconCheck, IconEdit, IconFees, IconPlus, IconStudents, IconTrash, IconUsers, IconTransport,
 } from '../components/icons'
@@ -328,7 +329,7 @@ function RouteDrawerModal({ routeId, canManage, onClose, onChanged, onEdit, onDe
 function AssignStudentModal({ route, onClose, onAssigned }: { route: RouteRow; onClose: () => void; onAssigned: () => void }) {
   const { data } = useApi<Paginated<{ id: number; first_name: string; last_name: string; admission_no: string }>>('/students?per_page=100&status=active')
   const students = data?.data ?? []
-  const [form, setForm] = useState({ student_id: '', transport_stop_id: '', kind: 'both', from_date: new Date().toISOString().slice(0, 10) })
+  const [form, setForm] = useState(() => ({ student_id: '', transport_stop_id: '', kind: 'both', from_date: todayISO() }))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 

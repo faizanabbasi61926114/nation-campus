@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDate, fmtPKR, hasPerm, type Paginated } from '../lib/types'
@@ -189,16 +190,16 @@ function StaffModal({ onClose, staff }: { onClose: () => void; staff?: StaffDeta
   const formRef = useRef<HTMLFormElement>(null)
   const { data: departments } = useApi<{ data: Department[] }>('/departments')
   const { data: designations } = useApi<{ data: Designation[] }>('/designations')
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     first_name: staff?.first_name ?? '', last_name: staff?.last_name ?? '', gender: staff?.gender ?? 'male',
-    joined_on: staff?.joined_on ?? new Date().toISOString().slice(0, 10),
+    joined_on: staff?.joined_on ?? todayISO(),
     base_salary: String(staff?.base_salary ?? ''), house_rent_percent: String(staff?.house_rent_percent ?? '30'),
     medical_allowance: String(staff?.medical_allowance ?? '0'), other_deductions: String(staff?.other_deductions ?? '0'),
     department_id: String(staff?.department_id ?? ''), designation_id: String(staff?.designation_id ?? ''),
     email: staff?.email ?? '', phone: staff?.phone ?? '', cnic: staff?.cnic ?? '', bank_account: staff?.bank_account ?? '',
     status: staff?.status ?? 'active', notes: staff?.notes ?? '',
     confirmed_on: staff?.confirmed_on ?? '', resigned_on: '',
-  })
+  }))
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -337,7 +338,7 @@ function LeaveBoard({ canApply, canApprove, onChanged }: { canApply: boolean; ca
 function LeaveModal({ onClose }: { onClose: () => void }) {
   const formRef = useRef<HTMLFormElement>(null)
   const { data } = useApi<{ data: { data: StaffRow[] } }>('/staff?status=active&per_page=100')
-  const [form, setForm] = useState({ staff_id: '', type: 'casual', from_date: new Date().toISOString().slice(0, 10), to_date: '', reason: '' })
+  const [form, setForm] = useState(() => ({ staff_id: '', type: 'casual', from_date: todayISO(), to_date: '', reason: '' }))
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
 

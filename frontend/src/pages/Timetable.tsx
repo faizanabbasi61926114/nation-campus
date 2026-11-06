@@ -3,7 +3,7 @@ import { api, apiError } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { IconPlus, IconTimetable } from '../components/icons'
 import { Btn, Card, Empty, ErrorNote, Field, Loading, Modal, PageHeader, inputCls, selectCls } from '../components/ui'
-import { askConfirm } from '../components/Confirm'
+import { askConfirm } from '../store/confirm'
 
 interface Slot {
   id: number; day_of_week: number; start_time: string; end_time: string; room?: string

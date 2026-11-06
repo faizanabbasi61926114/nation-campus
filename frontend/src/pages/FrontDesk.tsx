@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDateTime, hasPerm } from '../lib/types'
 import { label } from '../lib/labels'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 import {
   IconAlert, IconCheck, IconClock, IconFrontDesk, IconPlus, IconUsers,
 } from '../components/icons'
@@ -25,7 +26,6 @@ interface DeskSummary {
   top_purposes: { purpose: string; count: number }[]
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
 /** "2026-10-21 09:00:00" (Laravel) -> "2026-10-21T09:00" for a datetime-local input. */
 const toLocalInput = (v?: string | null) => (v ? `${v.replace(' ', 'T').slice(0, 16)}` : '')
 
@@ -33,7 +33,7 @@ export default function FrontDesk() {
   const { user, campusId } = useAuth()
   const canManage = hasPerm(user, 'frontdesk.manage')
 
-  const [date, setDate] = useState(today())
+  const [date, setDate] = useState(todayISO)
   const [openOnly, setOpenOnly] = useState(false)
 
   const query = `/frontdesk/visitors?date=${date}${openOnly ? '&open=1' : ''}`
@@ -134,12 +134,12 @@ function VisitorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const { data: users } = useApi<{ data: { id: number; name: string }[] }>('/users')
   const { data: students } = useApi<{ data: { id: number; first_name: string; last_name: string; admission_no: string }[] }>('/students?per_page=100&status=active')
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     name: '', phone: '', purpose: '', from_organization: '', gate: 'Main Gate',
     meets_user_id: '', meets_student_id: '', photo_id_taken: 'yes',
     in_at: toLocalInput(new Date().toISOString().replace('T', ' ').slice(0, 19)),
     out_at: '',
-  })
+  }))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 

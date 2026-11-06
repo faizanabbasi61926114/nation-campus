@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api, apiError } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import type { Paginated } from '../lib/types'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 import { IconExams, IconPlus } from '../components/icons'
 import { label } from '../lib/labels'
 import { Badge, Btn, Card, Empty, ErrorNote, Field, Loading, Modal, Notice, PageHeader, Status, Table, Tabs, Td, Th, Toolbar, inputCls, selectCls } from '../components/ui'
@@ -172,7 +172,11 @@ function MarksEntry({ examId, onChanged }: { examId: number; onChanged: () => vo
   const { data, loading, error, reload } = useApi<{ data: Roster }>(key, [key, examId])
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  useEffect(() => setDraft({}), [key])
+  const [draftKey, setDraftKey] = useState(key)
+  if (draftKey !== key) { // another section's roster starts with a clean draft
+    setDraftKey(key)
+    setDraft({})
+  }
 
   const roster = data?.data
   const subjects = roster?.exam.subjects ?? []

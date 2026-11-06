@@ -1,23 +1,6 @@
 import { useEffect, useState } from 'react'
-import { create } from 'zustand'
 import { IconAlert, IconCheck, IconClose, IconInfo } from './icons'
-
-type ToastTone = 'success' | 'error' | 'info'
-interface Toast { id: number; text: string; tone: ToastTone }
-interface Store { toasts: Toast[]; push: (text: string, tone: ToastTone) => void; dismiss: (id: number) => void }
-
-const useToasts = create<Store>((set) => ({
-  toasts: [],
-  push: (text, tone) => set((s) => ({ toasts: [...s.toasts.slice(-3), { id: Date.now() + Math.random(), text, tone }] })),
-  dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-}))
-
-/** Non-blocking replacement for alert(); auto-dismisses after a few seconds. */
-export const toast = {
-  success: (text: string) => useToasts.getState().push(text, 'success'),
-  error: (text: string) => useToasts.getState().push(text, 'error'),
-  info: (text: string) => useToasts.getState().push(text, 'info'),
-}
+import { useToasts, type Toast, type ToastTone } from '../store/toasts'
 
 const STYLE: Record<ToastTone, { ring: string; icon: typeof IconCheck }> = {
   success: { ring: 'border-brand-200 bg-brand-50 text-brand-800', icon: IconCheck },

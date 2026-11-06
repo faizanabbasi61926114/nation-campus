@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDate, hasPerm, type Paginated } from '../lib/types'
 import { label } from '../lib/labels'
-import { toast } from '../components/Toast'
+import { toast } from '../store/toasts'
 import { IconAlert, IconDiscipline, IconPlus, IconRoles, IconStudents, IconCheck } from '../components/icons'
 import {
   Badge, Btn, Card, DataList, Empty, ErrorNote, Field, Modal, Notice, PageHeader, SearchInput, StatCard, Status,
@@ -52,7 +53,6 @@ interface Draft {
 interface CloseDraft { id: number; action: string; suspension_days: string; parent_notified: boolean; remarks: string }
 
 const fullName = (s?: StudentLite | null) => (s ? `${s.first_name} ${s.last_name}`.trim() : '—')
-const today = () => new Date().toISOString().slice(0, 10)
 
 export default function Discipline() {
   const { user, campusId } = useAuth()
@@ -87,7 +87,7 @@ export default function Discipline() {
   function newDraft() {
     setErr('')
     setForm({
-      student_id: '', incident_on: today(), category: 'conduct', severity: 'minor', description: '',
+      student_id: '', incident_on: todayISO(), category: 'conduct', severity: 'minor', description: '',
       action: 'none', suspension_days: '0', parent_notified: false, remarks: '',
     })
   }

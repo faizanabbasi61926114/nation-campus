@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { api, apiError } from '../lib/api'
+import { monthISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDate, fmtPKR, hasPerm } from '../lib/types'
@@ -34,7 +35,7 @@ export default function Payroll() {
 
   const { data, loading, error, reload } = useApi<{ data: Run[] }>('/payroll/runs')
   const runs = data?.data ?? []
-  const selected = useMemo(() => runs.find((r) => r.id === runId) ?? runs[0] ?? null, [runs, runId])
+  const selected = runs.find((r) => r.id === runId) ?? runs[0] ?? null
   const { data: detail, loading: detailLoading, error: detailError, reload: reloadDetail } = useApi<{ data: { run: Run; payslips: Payslip[] } }>(
     selected ? `/payroll/runs/${selected.id}/payslips` : null, [selected?.id])
   const payslips = detail?.data?.payslips ?? []
@@ -148,7 +149,7 @@ export default function Payroll() {
 }
 
 function NewRunModal({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState({ month: new Date().toISOString().slice(0, 7), name: '' })
+  const [form, setForm] = useState(() => ({ month: monthISO(), name: '' }))
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
 

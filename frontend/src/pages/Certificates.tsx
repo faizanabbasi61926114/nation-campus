@@ -4,8 +4,8 @@ import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
 import { fmtDateTime, hasPerm, type Paginated } from '../lib/types'
 import { label } from '../lib/labels'
-import { toast } from '../components/Toast'
-import { askConfirm } from '../components/Confirm'
+import { toast } from '../store/toasts'
+import { askConfirm } from '../store/confirm'
 import { IconCertificate, IconCheck, IconClock, IconClose, IconPlus } from '../components/icons'
 import {
   Badge, Btn, Empty, ErrorNote, Field, Modal, Notice, PageHeader, SearchInput, StatCard, Status, Table, Tabs,
