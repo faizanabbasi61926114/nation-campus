@@ -3,6 +3,7 @@ import { api, apiError } from '../lib/api'
 import { monthISO, todayISO } from '../lib/dates'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../store/auth'
+import { hasPerm } from '../lib/types'
 import { toast } from '../store/toasts'
 import { IconAttendance } from '../components/icons'
 import { label } from '../lib/labels'
@@ -10,7 +11,8 @@ import { Btn, Empty, Notice, PageHeader, Status, StatusDot, Table, Tabs, Td, Th,
 import { type Tone } from '../components/tones'
 
 interface RosterRow {
-  id: number; first_name: string; last_name?: string; roll_no?: string | null
+  id: number; first_name?: string; last_name?: string; roll_no?: string | null
+  name?: string; employee_no?: string | null; designation?: string | null; department?: string | null
   status: string | null; marked: boolean
 }
 interface MonthlyRow {
@@ -28,14 +30,16 @@ const STATUSES: { key: string; label: string; tone: Tone; on: string }[] = [
   { key: 'excused', label: 'E', tone: 'slate', on: 'bg-slate-500 text-white shadow-sm' },
 ]
 
-export default function Attendance() {
+/** `initial` lets a module mount open on the staff register - see lib/nav "Staff Register". */
+export default function Attendance({ initial = 'student' }: { initial?: 'student' | 'staff' }) {
   const { user } = useAuth()
-  const canMark = user?.permissions?.includes('attendance.mark') || user?.permissions?.includes('*')
   const campusSelected = !!localStorage.getItem('cms_campus')
   const [tab, setTab] = useState<'mark' | 'monthly'>('mark')
-  const [subjectType, setSubjectType] = useState<'student' | 'staff'>('student')
+  const [subjectType, setSubjectType] = useState<'student' | 'staff'>(initial)
   const [date, setDate] = useState(todayISO)
   const [month, setMonth] = useState(monthISO)
+  // Two registers, two owners: teachers mark the class roll, HR and the principal mark the staff one.
+  const canMark = subjectType === 'staff' ? hasPerm(user, 'attendance.manage') : hasPerm(user, 'attendance.mark')
 
   const { data: sections } = useApi<{ data: { id: number; name: string; school_class?: { name: string } }[] }>('/sections')
   const [sectionId, setSectionId] = useState<number | null>(null)
@@ -121,14 +125,22 @@ export default function Attendance() {
             {STATUSES.map((s) => <StatusDot key={s.key} tone={s.tone} label={`${label(s.key)} ${counts[s.key] ?? 0}`} />)}
             <span className="nums ml-auto text-xs text-ink-soft">Unmarked: {rows.length - Object.values(counts).reduce((a, b) => a + b, 0)}</span>
           </div>
-          <Table headers={<><Th>Roll #</Th><Th>Name</Th><Th>Status</Th></>}
-            cols={3} loading={rosterLoading} error={rosterError} onRetry={reload}>
+          <Table headers={<>
+            <Th>{subjectType === 'staff' ? 'Employee #' : 'Roll #'}</Th>
+            <Th>Name</Th>
+            {subjectType === 'staff' && <Th>Role</Th>}
+            <Th>Status</Th>
+          </>}
+            cols={subjectType === 'staff' ? 4 : 3} loading={rosterLoading} error={rosterError} onRetry={reload}>
             {rows.map((r) => {
               const current = draft[r.id] ?? r.status
               return (
                 <tr key={r.id}>
-                  <Td className="nums text-xs">{r.roll_no ?? `#${r.id}`}</Td>
-                  <Td className="font-medium">{[r.first_name, r.last_name].filter(Boolean).join(' ')}</Td>
+                  <Td className="nums text-xs">{r.roll_no ?? r.employee_no ?? `#${r.id}`}</Td>
+                  <Td className="font-medium">{r.name ?? [r.first_name, r.last_name].filter(Boolean).join(' ')}</Td>
+                  {subjectType === 'staff' && (
+                    <Td className="text-xs text-ink-soft">{[r.designation, r.department].filter(Boolean).join(' · ') || '—'}</Td>
+                  )}
                   <Td>
                     <div className="flex gap-1">
                       {STATUSES.map((s) => (
@@ -146,7 +158,7 @@ export default function Attendance() {
               )
             })}
             {!rows.length && !rosterLoading && (
-              <tr><Td colSpan={3}><Empty text={campusSelected ? 'Nothing to show for this selection.' : 'Select a campus first.'} hint={canMark ? 'Pick a section and date, then mark the register.' : undefined} /></Td></tr>
+              <tr><Td colSpan={subjectType === 'staff' ? 4 : 3}><Empty text={campusSelected ? 'Nothing to show for this selection.' : 'Select a campus first.'} hint={canMark ? (subjectType === 'staff' ? 'Mark the staff register for today.' : 'Pick a section and date, then mark the register.') : undefined} /></Td></tr>
             )}
           </Table>
         </>

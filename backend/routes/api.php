@@ -23,6 +23,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentEntryController;
 use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\TransportController;
@@ -103,13 +104,15 @@ Route::prefix('v1')->group(function () {
         Route::prefix('guardian')->middleware('perm:guardian.view')->group(function () {
             Route::get('wards', [GuardianController::class, 'wards']);
             Route::get('wards/{student}/attendance', [GuardianController::class, 'attendance'])->whereNumber('student');
+            Route::get('wards/{student}/entries', [GuardianController::class, 'entries'])->whereNumber('student');
             Route::get('wards/{student}/fees', [GuardianController::class, 'fees'])->whereNumber('student');
             Route::get('wards/{student}/results', [GuardianController::class, 'results'])->whereNumber('student');
         });
 
         // Attendance
         Route::get('attendance/roster', [AttendanceController::class, 'roster'])->middleware('perm:attendance.view');
-        Route::post('attendance/mark', [AttendanceController::class, 'mark'])->middleware('perm:attendance.mark');
+        // Either permission opens the endpoint; mark() sends each register to its own owner.
+        Route::post('attendance/mark', [AttendanceController::class, 'mark'])->middleware('perm:attendance.mark,attendance.manage');
         Route::get('attendance/monthly', [AttendanceController::class, 'monthly'])->middleware('perm:attendance.view');
         Route::get('attendance/history', [AttendanceController::class, 'history'])->middleware('perm:attendance.view');
 
@@ -245,6 +248,11 @@ Route::prefix('v1')->group(function () {
         Route::post('frontdesk/visitors', [FrontDeskController::class, 'store'])->middleware('perm:frontdesk.manage');
         Route::put('frontdesk/visitors/{visitor}', [FrontDeskController::class, 'update'])->middleware('perm:frontdesk.manage');
         Route::post('frontdesk/visitors/{visitor}/checkout', [FrontDeskController::class, 'checkOut'])->middleware('perm:frontdesk.manage');
+
+        // Gate log — a child tapped In or Out, and the family alert that follows
+        Route::get('entries/summary', [StudentEntryController::class, 'summary'])->middleware('perm:frontdesk.view');
+        Route::get('entries', [StudentEntryController::class, 'index'])->middleware('perm:frontdesk.view');
+        Route::post('entries', [StudentEntryController::class, 'store'])->middleware('perm:frontdesk.manage');
 
         // Certificates and documents — request, decide, issue with a serial number
         Route::get('certificates/summary', [CertificateController::class, 'summary'])->middleware('perm:documents.view');

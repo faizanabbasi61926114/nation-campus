@@ -7,8 +7,8 @@ use App\Models\Campus;
 use App\Models\Program;
 use App\Models\SchoolClass;
 use App\Models\Section;
+use App\Models\Staff;
 use App\Models\Student;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -36,6 +36,8 @@ class AttendanceTest extends TestCase
         $this->seed(\Database\Seeders\RoleSeeder::class);
         $this->seed(\Database\Seeders\UserSeeder::class);
         $this->seed(\Database\Seeders\AcademicsSeeder::class);
+        // The staff register is the HR list, so the staff records have to exist.
+        $this->seed(\Database\Seeders\HrSeeder::class);
 
         $this->teacher = $this->postJson('/api/v1/auth/login', ['email' => 'teacher.lhr@sunrise.edu.pk', 'password' => 'Password123!'])->json('token');
         $this->app['auth']->forgetGuards();
@@ -195,21 +197,66 @@ class AttendanceTest extends TestCase
 
     public function test_staff_attendance_round_trip(): void
     {
-        $teacherId = User::firstWhere('email', 'teacher.lhr@sunrise.edu.pk')->id;
+        $teacherHr = Staff::firstWhere('employee_no', 'S-LHR-0002');
         $this->withToken($this->principalLhr)->postJson('/api/v1/attendance/mark', [
             'date' => $this->markDate, 'subject_type' => 'staff',
-            'records' => [['subject_id' => $teacherId, 'status' => 'leave', 'remarks' => 'Training']],
+            'records' => [['subject_id' => $teacherHr->id, 'status' => 'leave', 'remarks' => 'Training']],
         ])->assertOk();
 
         $this->app['auth']->forgetGuards();
-        $this->withToken($this->principalLhr)->getJson("/api/v1/attendance/history?subject_type=staff&subject_id=$teacherId")
+        $this->withToken($this->principalLhr)->getJson("/api/v1/attendance/history?subject_type=staff&subject_id={$teacherHr->id}")
             ->assertOk()->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.status', 'leave')
             ->assertJsonPath('data.0.remarks', 'Training');
 
         $this->app['auth']->forgetGuards();
         $roster = $this->withToken($this->principalLhr)->getJson("/api/v1/attendance/roster?date={$this->markDate}&subject_type=staff")->assertOk()->json('data');
-        $this->assertContains($teacherId, array_column($roster, 'id'));
+        $ids = array_column($roster, 'id');
+        $this->assertContains($teacherHr->id, $ids);
+        // Support staff never sign in, but they are on the register the principal marks.
+        $this->assertContains(Staff::firstWhere('employee_no', 'S-LHR-0012')->id, $ids);
+        $this->assertSame('leave', collect($roster)->firstWhere('id', $teacherHr->id)['status']);
+    }
+
+    public function test_staff_attendance_rejects_another_campus_staff_member(): void
+    {
+        $islamabad = Staff::firstWhere('employee_no', 'S-ISB-0001');
+        $this->app['auth']->forgetGuards();
+        $this->withToken($this->principalLhr)->postJson('/api/v1/attendance/mark', [
+            'date' => $this->markDate, 'subject_type' => 'staff',
+            'records' => [['subject_id' => $islamabad->id, 'status' => 'present']],
+        ])->assertStatus(422);
+        $this->assertSame(0, AttendanceRecord::where('subject_type', 'staff')->count());
+    }
+
+    /** Two registers, two owners: attendance.mark runs the class roll, attendance.manage runs the staff one. */
+    public function test_each_register_belongs_to_its_own_permission(): void
+    {
+        $hr = $this->postJson('/api/v1/auth/login', ['email' => 'hr.lhr@sunrise.edu.pk', 'password' => 'Password123!'])->json('token');
+        $this->app['auth']->forgetGuards();
+        $staff = Staff::firstWhere('employee_no', 'S-LHR-0002');
+
+        $this->withToken($hr)->postJson('/api/v1/attendance/mark', [
+            'date' => $this->markDate, 'subject_type' => 'staff',
+            'records' => [['subject_id' => $staff->id, 'status' => 'present']],
+        ])->assertOk();
+        $this->assertSame(1, AttendanceRecord::where('subject_type', 'staff')->count());
+
+        // The same account may read the class roll but not write it.
+        $this->app['auth']->forgetGuards();
+        $this->withToken($hr)->postJson('/api/v1/attendance/mark', [
+            'date' => $this->markDate, 'subject_type' => 'student',
+            'records' => [['subject_id' => $this->s1->id, 'status' => 'present']],
+        ])->assertForbidden();
+
+        // And a class teacher cannot mark the staff register.
+        $this->app['auth']->forgetGuards();
+        $this->withToken($this->teacher)->postJson('/api/v1/attendance/mark', [
+            'date' => $this->markDate, 'subject_type' => 'staff',
+            'records' => [['subject_id' => $staff->id, 'status' => 'absent']],
+        ])->assertForbidden();
+        $this->assertSame('present', AttendanceRecord::where('subject_type', 'staff')->first()->status);
+        $this->assertSame(0, AttendanceRecord::where('subject_type', 'student')->count());
     }
 
     /** TenantContext is a singleton that keeps the last request's campus; direct model queries must reset it. */

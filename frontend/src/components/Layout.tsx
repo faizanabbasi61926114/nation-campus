@@ -1,137 +1,44 @@
-import { useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { needsSchoolChoice, useAuth } from '../store/auth'
-import { hasPerm, type CampusBrief } from '../lib/types'
+import { hasPerm } from '../lib/types'
 import { label } from '../lib/labels'
-import { moduleAvailable, schoolTypeName, scopeTypes } from '../lib/schoolTypes'
+import { scopeTypes } from '../lib/schoolTypes'
+import { FLAT, groupsWithAccess } from '../lib/nav'
 import { isHousehold } from '../mobile/roles'
 import { Avatar } from './ui'
+import CampusSwitcher from './CampusSwitcher'
 import { Toaster } from './Toast'
 import { ConfirmHost } from './Confirm'
-import {
-  IconAcademics, IconAccounts, IconAdmissions, IconAnnouncements, IconAttendance, IconAudit, IconCampuses,
-  IconCertificate, IconChevronDown, IconDashboard, IconDiscipline, IconExams, IconFees, IconFrontDesk, IconHostel,
-  IconLeave, IconLibrary, IconLogout, IconMessages, IconPayroll, IconReport, IconRoles, IconSettings, IconStaff,
-  IconStudents, IconTimetable, IconTransport, IconUsers,
-} from './icons'
-
-type IconType = ComponentType<SVGProps<SVGSVGElement>>
-interface NavItem { to: string; label: string; perm: string; icon: IconType; mod?: string }
-interface NavGroup { title: string; items: NavItem[] }
-
-/**
- * `mod` ties an entry to an institution type: a Montessori campus has no boarding house, so the
- * hostel should not be a dead link there. See lib/schoolTypes.
- */
-const NAV: NavGroup[] = [
-  { title: 'Overview', items: [
-    { to: '/', label: 'Dashboard', perm: 'dashboard.view', icon: IconDashboard },
-    { to: '/reports', label: 'Reports', perm: 'reports.view', icon: IconReport },
-  ]},
-  { title: 'Admissions & Students', items: [
-    { to: '/admissions', label: 'Admissions', perm: 'admissions.view', icon: IconAdmissions },
-    { to: '/students', label: 'Students', perm: 'students.view', icon: IconStudents },
-  ]},
-  { title: 'Academics', items: [
-    { to: '/programs', label: 'Programs & Classes', perm: 'academics.view', icon: IconAcademics },
-    { to: '/timetable', label: 'Timetable', perm: 'academics.view', icon: IconTimetable },
-    { to: '/attendance', label: 'Attendance', perm: 'attendance.view', icon: IconAttendance },
-    { to: '/exams', label: 'Examinations', perm: 'exams.view', icon: IconExams },
-  ]},
-  { title: 'Campus Life', items: [
-    { to: '/frontdesk', label: 'Front Desk', perm: 'frontdesk.view', icon: IconFrontDesk, mod: 'frontdesk' },
-    { to: '/calendar', label: 'School Calendar', perm: 'calendar.view', icon: IconTimetable, mod: 'calendar' },
-    { to: '/library', label: 'Library', perm: 'library.view', icon: IconLibrary, mod: 'library' },
-    { to: '/transport', label: 'Transport', perm: 'transport.view', icon: IconTransport, mod: 'transport' },
-    { to: '/hostel', label: 'Hostel', perm: 'hostel.view', icon: IconHostel, mod: 'hostel' },
-    { to: '/certificates', label: 'Certificates', perm: 'documents.view', icon: IconCertificate, mod: 'certificates' },
-    { to: '/discipline', label: 'Discipline', perm: 'discipline.view', icon: IconDiscipline, mod: 'discipline' },
-  ]},
-  { title: 'Finance', items: [
-    { to: '/fees', label: 'Fee Management', perm: 'fees.view', icon: IconFees },
-    { to: '/accounts', label: 'Accounts', perm: 'accounts.view', icon: IconAccounts },
-    { to: '/payroll', label: 'Payroll', perm: 'payroll.view', icon: IconPayroll },
-  ]},
-  { title: 'Staff & HR', items: [
-    { to: '/staff', label: 'Staff Directory', perm: 'staff.view', icon: IconStaff },
-    { to: '/hr/leave', label: 'Leave', perm: 'hr.view', icon: IconLeave },
-  ]},
-  { title: 'Communication', items: [
-    { to: '/announcements', label: 'Announcements', perm: 'communication.view', icon: IconAnnouncements },
-    { to: '/messages', label: 'Messages', perm: 'communication.view', icon: IconMessages },
-  ]},
-  { title: 'Administration', items: [
-    { to: '/campuses', label: 'Campuses', perm: 'campuses.view', icon: IconCampuses },
-    { to: '/users', label: 'Users', perm: 'users.view', icon: IconUsers },
-    { to: '/roles', label: 'Roles & Permissions', perm: 'users.view', icon: IconRoles },
-    { to: '/audit', label: 'Audit Log', perm: 'audit.view', icon: IconAudit },
-    { to: '/settings', label: 'Settings', perm: 'settings.view', icon: IconSettings },
-  ]},
-]
-
-const FLAT = NAV.flatMap((g) => g.items.map((i) => ({ ...i, group: g.title })))
+import { IconDashboard, IconLogout } from './icons'
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { user, campusId } = useAuth()
-  const types = scopeTypes(user, campusId)
+  const groups = groupsWithAccess(user, scopeTypes(user, campusId))
   return (
     <nav aria-label="Main navigation" className="scroll-slim flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto px-3 py-5">
-      {NAV.map((g) => {
-        const items = g.items.filter((i) => hasPerm(user, i.perm) && moduleAvailable(i.mod ?? '', types))
-        if (!items.length) return null
-        return (
-          <div key={g.title}>
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">{g.title}</p>
-            {items.map((i) => (
-              <NavLink key={i.to} to={i.to} end={i.to === '/'} onClick={onNavigate}
-                className={({ isActive }) => `group relative mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition duration-150 ${
-                  isActive
-                    ? 'bg-white/[0.13] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]'
-                    : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
-                }`}>
-                {({ isActive }) => (
-                  <>
-                    <span className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gold-300 transition-opacity ${isActive ? 'opacity-100' : 'opacity-0'}`} />
-                    <i.icon className={`h-[18px] w-[18px] shrink-0 transition ${isActive ? 'text-gold-300' : 'text-white/40 group-hover:text-white/70'}`} />
-                    <span className="truncate">{i.label}</span>
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
-        )
-      })}
+      {groups.map((g) => (
+        <div key={g.title}>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">{g.title}</p>
+          {g.items.map((i) => (
+            <NavLink key={i.to} to={i.to} end={i.to === '/'} onClick={onNavigate}
+              className={({ isActive }) => `group relative mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition duration-150 ${
+                isActive
+                  ? 'bg-white/[0.13] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]'
+                  : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+              }`}>
+              {({ isActive }) => (
+                <>
+                  <span className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gold-300 transition-opacity ${isActive ? 'opacity-100' : 'opacity-0'}`} />
+                  <i.icon className={`h-[18px] w-[18px] shrink-0 transition ${isActive ? 'text-gold-300' : 'text-white/40 group-hover:text-white/70'}`} />
+                  <span className="truncate">{i.label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </div>
+      ))}
     </nav>
-  )
-}
-
-export function CampusSwitcher() {
-  const { user, campusId, switchCampus } = useAuth()
-  const campus = campusId === null ? '' : String(campusId)
-  if (!user?.is_head_office) {
-    const c = user?.campuses?.[0]
-    return c ? (
-      <span className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-card">
-        <IconCampuses className="h-4 w-4 text-brand-500" />{c.name}
-        {c.school_type && <span className="rounded-md bg-canvas px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft">{schoolTypeName(c.school_type)}</span>}
-      </span>
-    ) : null
-  }
-  const selected = user.campuses.find((c) => c.id === campusId)
-  return (
-    <span className="flex items-center gap-2">
-      <label className="relative inline-flex max-w-[min(68vw,21rem)] items-center">
-        <IconCampuses className="pointer-events-none absolute left-3 h-4 w-4 text-brand-500" />
-        <span className="sr-only">Select campus</span>
-        <select aria-label="Select campus" value={campus} onChange={(e) => { void switchCampus(e.target.value ? Number(e.target.value) : null) }}
-          className="w-full cursor-pointer appearance-none truncate rounded-xl border border-line-strong bg-white py-2 pl-9 pr-8 text-[13px] font-medium text-slate-700 shadow-card outline-none transition hover:border-brand-300 focus:border-brand-500">
-          <option value="">All campuses (Head Office)</option>
-          {user.campuses.map((c: CampusBrief) => <option key={c.id} value={c.id}>{c.name} ({c.code}) — {schoolTypeName(c.school_type)}</option>)}
-        </select>
-        <IconChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-slate-400" />
-      </label>
-      {selected && <span className="hidden rounded-xl border border-line-strong bg-canvas px-2.5 py-2 text-[11px] font-semibold text-ink-soft lg:block">{schoolTypeName(selected.school_type)}</span>}
-    </span>
   )
 }
 
@@ -189,6 +96,10 @@ export default function Layout() {
               <button aria-label="Close navigation" onClick={() => setMobile(false)} className="grid h-9 w-9 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">✕</button>
             </div>
             <Sidebar onNavigate={() => setMobile(false)} />
+            <Link to="/app" onClick={() => setMobile(false)}
+              className="mx-3 mb-2 flex items-center gap-3 rounded-xl bg-white/[0.06] px-3 py-2.5 text-[13px] font-semibold text-white ring-1 ring-inset ring-white/8 transition hover:bg-white/10">
+              <IconDashboard className="h-[18px] w-[18px] text-gold-300" />Phone app
+            </Link>
             <div className="border-t border-white/8 p-4 text-sm text-white/70">{user.name}</div>
           </aside>
         </div>
@@ -206,11 +117,9 @@ export default function Layout() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2.5">
-              {hasPerm(user, 'academics.view') && (
-                <Link to="/app" className="hidden items-center gap-1.5 rounded-xl border border-line-strong bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-card transition hover:border-brand-300 hover:bg-brand-50/60 hover:text-brand-800 sm:inline-flex">
-                  <IconDashboard className="h-4 w-4 text-brand-500" />Phone app
-                </Link>
-              )}
+              <Link to="/app" className="hidden items-center gap-1.5 rounded-xl border border-line-strong bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-card transition hover:border-brand-300 hover:bg-brand-50/60 hover:text-brand-800 sm:inline-flex">
+                <IconDashboard className="h-4 w-4 text-brand-500" />Phone app
+              </Link>
               <CampusSwitcher />
               <span className="hidden h-6 w-px bg-line-strong sm:block" />
               <span className="hidden text-right sm:block">

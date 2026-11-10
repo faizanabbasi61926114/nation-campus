@@ -1,17 +1,19 @@
-import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
+import { useEffect, type ComponentType, type MouseEvent, type ReactNode, type SVGProps } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useApi } from '../lib/hooks'
 import { hasPerm } from '../lib/types'
 import { label } from '../lib/labels'
+import { FLAT, NATIVE_SCREENS, officePath, type NavItem } from '../lib/nav'
 import { useAuth } from '../store/auth'
 import { Avatar, ErrorNote } from '../components/ui'
+import CampusSwitcher from '../components/CampusSwitcher'
 import { Toaster } from '../components/Toast'
 import { ConfirmHost } from '../components/Confirm'
 import { IconOnly, RefreshButton } from './shellParts'
-import { mobileAudience } from './roles'
+import { isClassTeacher, mobileAudience } from './roles'
 import {
   IconAnnouncements, IconAttendance, IconChevronLeft, IconDashboard, IconExams,
-  IconMessages, IconSettings, IconStudents,
+  IconMenu, IconMessages, IconSettings, IconStudents,
 } from '../components/icons'
 
 type IconType = ComponentType<SVGProps<SVGSVGElement>>
@@ -24,27 +26,71 @@ const PARENT_TABS: Tab[] = [
   { to: '/app/me', label: 'Account', icon: IconSettings },
 ]
 
-const TEACHER_TABS: Tab[] = [
+/**
+ * Staff shortcuts are permission-gated, and the launcher carries every management module. Six tabs
+ * is the most any role sees - a phone tab bar stops reading beyond that.
+ */
+const STAFF_TABS: Tab[] = [
   { to: '/app', label: 'Today', icon: IconDashboard },
   { to: '/app/attendance', label: 'Roll call', icon: IconAttendance, perm: 'attendance.mark' },
   { to: '/app/marks', label: 'Marks', icon: IconExams, perm: 'exams.marks_entry' },
   { to: '/app/messages', label: 'Inbox', icon: IconMessages, perm: 'communication.view', badge: 'messages' },
+  { to: '/app/more', label: 'More', icon: IconMenu },
   { to: '/app/me', label: 'Account', icon: IconSettings },
 ]
 
-const TITLES: Record<string, string> = {
+const TAB_TITLES: Record<string, string> = {
   '/app': 'Today',
   '/app/attendance': 'Roll call',
   '/app/marks': 'Marks entry',
   '/app/notices': 'Notices',
   '/app/messages': 'Messages',
+  '/app/more': 'All modules',
   '/app/me': 'Account',
+}
+
+const OFFICE_PREFIX = '/app/office'
+
+/** The catalogue entry that owns a website path, e.g. /messages/12 → Messages. */
+function itemFor(websitePath: string): NavItem | null {
+  return FLAT
+    .filter((i) => websitePath === i.to || (i.to !== '/' && websitePath.startsWith(`${i.to}/`)))
+    .sort((a, b) => b.to.length - a.to.length)[0] ?? null
+}
+
+/** The module a /app/office… route is showing. */
+function officeItemOf(pathname: string): NavItem | null {
+  if (!pathname.startsWith(`${OFFICE_PREFIX}/`)) return null
+  const rest = pathname.slice(OFFICE_PREFIX.length)
+  return itemFor(rest === '/dashboard' ? '/' : rest)
+}
+
+/** The catalogue entry whose phone-native screen is showing, e.g. /app/gate → Gate entry. */
+function nativeItemOf(pathname: string): NavItem | null {
+  return NATIVE_SCREENS.find((i) => i.app === pathname) ?? null
+}
+
+/**
+ * Desktop module links inside a phone screen are rewritten to the same screen in the app shell,
+ * so a tap never drops the user into the website layout. An anchor can opt out with data-desktop.
+ */
+function toOfficePath(href: string): string | null {
+  if (!href.startsWith('/') || href.startsWith('/app') || href.startsWith('//')) return null
+  const mark = href.indexOf('?')
+  const path = mark === -1 ? href : href.slice(0, mark)
+  const query = mark === -1 ? '' : href.slice(mark)
+  const item = itemFor(path)
+  if (!item) return null
+  // A native screen replaces the whole module, so sub-paths keep going to the office mount.
+  if (item.app && path === item.to) return item.app
+  return `${officePath(item.to)}${path.slice(item.to.length)}${query}`
 }
 
 /** The tab that owns the current path, including the detail screens hanging off a tab. */
 function tabIsActive(isActive: boolean, path: string, to: string): boolean {
   if (isActive) return true
-  return to === '/app' && path.startsWith('/app/child')
+  if (to === '/app') return path.startsWith('/app/child')
+  return to === '/app/more' && path.startsWith(OFFICE_PREFIX)
 }
 
 export default function MobileShell() {
@@ -68,12 +114,29 @@ export default function MobileShell() {
   if (!user) return <Navigate to="/login" replace />
   if (!audience) return <Navigate to="/" replace />
 
-  const tabs = (audience === 'parent' ? PARENT_TABS : TEACHER_TABS)
+  const classTeacher = isClassTeacher(user)
+  const tabs = (audience === 'parent' ? PARENT_TABS : STAFF_TABS)
     .filter((t) => !t.perm || hasPerm(user, t.perm))
   const childRoute = /^\/app\/child\/\d+/.test(loc.pathname)
-  const title = childRoute ? 'Your child' : TITLES[loc.pathname] ?? 'Nation Campus'
+  const office = officeItemOf(loc.pathname)
+  const native = nativeItemOf(loc.pathname)
+  const title = childRoute ? 'Your child'
+    : office ? office.label
+    : native ? native.label
+    : loc.pathname === '/app' ? (classTeacher ? 'Today' : 'Overview')
+    : TAB_TITLES[loc.pathname] ?? 'Nation Campus'
+  const showBack = childRoute || !!office || !!native || !(loc.pathname in TAB_TITLES)
   const unread = (path: string, key: 'messages' | 'announcements') =>
     loc.pathname === path ? 0 : Number(counts?.data?.[key] ?? 0)
+
+  const keepInsideApp = (event: MouseEvent<HTMLElement>) => {
+    const anchor = (event.target as HTMLElement).closest?.('a')
+    if (!anchor || anchor.hasAttribute('data-desktop') || anchor.target === '_blank') return
+    const mapped = toOfficePath(anchor.getAttribute('href') ?? '')
+    if (!mapped) return
+    event.preventDefault()
+    nav(mapped)
+  }
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -82,7 +145,7 @@ export default function MobileShell() {
       <div className="mx-auto flex min-h-screen w-full max-w-[38rem] flex-col">
         <header className="sticky top-0 z-30 border-b border-line/80 bg-white/72 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
           <div className="flex items-center gap-2.5 px-4 py-3">
-            {childRoute || !TITLES[loc.pathname] ? (
+            {showBack ? (
               <IconOnly label="Go back" onClick={() => nav(-1)}><IconChevronLeft className="h-5 w-5" /></IconOnly>
             ) : (
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-900 text-base font-bold text-gold-300">N</span>
@@ -94,9 +157,10 @@ export default function MobileShell() {
             <RefreshButton />
             <Avatar name={user.name} className="h-9 w-9" />
           </div>
+          {audience === 'staff' && <div className="px-4 pb-3"><CampusSwitcher /></div>}
         </header>
 
-        <main className="flex-1 px-4 pb-32 pt-4">
+        <main className="flex-1 px-4 pb-32 pt-4" key={loc.pathname} onClick={keepInsideApp}>
           <Outlet />
         </main>
 
@@ -104,15 +168,16 @@ export default function MobileShell() {
           <div className="flex items-stretch gap-1 rounded-2xl border border-white/60 bg-white/72 p-1 shadow-pop ring-1 ring-black/[0.03] backdrop-blur-2xl">
             {tabs.map((t) => {
               const n = t.badge ? unread(t.to, t.badge) : 0
+              const tabLabel = t.to === '/app' && audience === 'staff' && !classTeacher ? 'Overview' : t.label
               return (
                 <NavLink key={t.to} to={t.to} end={t.to === '/app'}
-                  className={({ isActive }) => `relative flex flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10.5px] font-semibold transition duration-150 ${
+                  className={({ isActive }) => `relative flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition duration-150 ${
                     tabIsActive(isActive, loc.pathname, t.to) ? 'bg-brand-700 text-white shadow-sm' : 'text-ink-soft hover:bg-white/70'
                   }`}>
                   <t.icon className="h-[19px] w-[19px]" />
-                  <span className="truncate leading-none">{t.label}</span>
+                  <span className="w-full truncate leading-none">{tabLabel}</span>
                   {n > 0 && (
-                    <span className="absolute right-2 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white/80">{n > 9 ? '9+' : n}</span>
+                    <span className="absolute right-1.5 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white/80">{n > 9 ? '9+' : n}</span>
                   )}
                 </NavLink>
               )

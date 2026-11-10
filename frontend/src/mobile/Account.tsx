@@ -79,7 +79,7 @@ export default function Account() {
 
       <Card className="divide-y divide-line/70">
         {!isHousehold(user) && (
-          <Link to="/" className="flex items-center justify-between px-4 py-3.5 text-[13.5px] font-semibold text-slate-800 transition active:bg-brand-50/60">
+          <Link to="/" data-desktop className="flex items-center justify-between px-4 py-3.5 text-[13.5px] font-semibold text-slate-800 transition active:bg-brand-50/60">
             Open the desktop workspace<span className="text-[11px] font-medium text-brand-700">full records</span>
           </Link>
         )}

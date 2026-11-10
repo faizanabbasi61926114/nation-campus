@@ -21,6 +21,7 @@ use App\Models\PayrollRun;
 use App\Models\Setting;
 use App\Models\Staff;
 use App\Models\Student;
+use App\Models\StudentEntry;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,7 @@ class DashboardController extends Controller
         if ($can('accounts.view'))    $sections['accounts'] = $this->accounts();
         if ($can('communication.view')) $sections['communication'] = $this->communication($me->id);
         if ($can('audit.view'))       $sections['audit'] = $this->audit();
+        if ($can('frontdesk.view'))   $sections['gate'] = $this->gate();
 
         return response()->json(['data' => [
             'generated_at' => now()->toDateTimeString(),
@@ -193,10 +195,36 @@ class DashboardController extends Controller
     {
         $row = AttendanceRecord::where('subject_type', 'staff')->whereDate('date', $today)
             ->selectRaw('count(*) marks, sum(case when status = \'present\' then 1 else 0 end) present')->first();
+        // The register is the HR list, so the denominator is the staff on it — not the
+        // number of accounts that happen to be able to sign in.
+        $headcount = Staff::whereIn('status', ['active', 'probation'])->count();
+        $present = (int) ($row?->present ?? 0);
         return [
             'marked' => (int) ($row?->marks ?? 0),
-            'present' => (int) ($row?->present ?? 0),
+            'present' => $present,
+            'headcount' => $headcount,
+            'unmarked' => max(0, $headcount - (int) ($row?->marks ?? 0)),
+            'present_percent' => $headcount > 0 ? round($present / $headcount * 100, 1) : null,
             'on_leave' => LeaveApplication::where('status', 'approved')->whereDate('from_date', '<=', $today)->whereDate('to_date', '>=', $today)->count(),
+        ];
+    }
+
+    /** Today at the school gate, for whoever runs the front desk. */
+    private function gate(): array
+    {
+        $today = now()->toDateString();
+        $taps = StudentEntry::onDate($today)->orderBy('at')->orderBy('id')->get(['student_id', 'direction', 'parent_notified_at']);
+        $lastPerStudent = $taps->groupBy('student_id')->map->last();
+        $expected = Student::where('status', 'active')->count();
+
+        return [
+            'date' => $today,
+            'arrivals' => $taps->where('direction', 'in')->count(),
+            'departures' => $taps->where('direction', 'out')->count(),
+            'inside' => $lastPerStudent->where('direction', 'in')->count(),
+            'expected' => $expected,
+            'untapped' => max(0, $expected - $lastPerStudent->count()),
+            'families_alerted' => $taps->whereNotNull('parent_notified_at')->count(),
         ];
     }
 
@@ -338,6 +366,9 @@ class DashboardController extends Controller
             }
             if ($a['at_risk']['count'] > 0) {
                 $push('warning', 'attendance', "{$a['at_risk']['count']} student(s) are below the {$a['at_risk']['threshold']}% attendance threshold this month.", '/attendance');
+            }
+            if (($a['staff']['unmarked'] ?? 0) > 0) {
+                $push('warning', 'attendance', "{$a['staff']['unmarked']} staff member(s) are still missing from today's register.", '/attendance');
             }
         }
         if ($f = $sections['fees'] ?? null) {

@@ -6,8 +6,9 @@ import { Screen } from './MobileShell'
 import { Bar, ListSkeleton, Metric } from './shellParts'
 import { useReloadOnRefresh } from './refresh'
 import { Badge, Card, Empty } from '../components/ui'
-import { IconAttendance, IconChevronRight, IconReport } from '../components/icons'
-import { mobileAudience } from './roles'
+import { IconAttendance, IconChevronRight, IconGate, IconReport } from '../components/icons'
+import Dashboard from '../pages/Dashboard'
+import { isClassTeacher, mobileAudience } from './roles'
 import TeacherToday from './TeacherToday'
 
 interface Ward {
@@ -22,6 +23,7 @@ interface Ward {
   class_teacher: string | null
   attendance: { percentage: number; present: number; absent: number; total: number } | null
   today: string | null
+  gate: { direction: string; at: string; time: string; gate: string | null; source: string } | null
   fees: { balance: number; overdue_invoices: number; alert: boolean }
   latest_result: { exam_id: number; exam: string; start_date: string; percentage: number; grade: string } | null
 }
@@ -30,10 +32,11 @@ const DAY_TONE: Record<string, 'green' | 'amber' | 'rose' | 'blue' | 'slate'> = 
   present: 'green', late: 'amber', absent: 'rose', leave: 'blue', excused: 'slate',
 }
 
-/** One route, two audiences: a family sees its children, staff see today's teaching. */
+/** One route, three audiences: a family sees its children, class teachers see today's classes, other staff see the campus overview. */
 export default function MobileHome() {
   const { user } = useAuth()
-  return mobileAudience(user) === 'parent' ? <ParentHome /> : <TeacherToday />
+  if (mobileAudience(user) === 'parent') return <ParentHome />
+  return isClassTeacher(user) ? <TeacherToday /> : <Dashboard />
 }
 
 function ParentHome() {
@@ -88,6 +91,20 @@ function WardCard({ ward: w }: { ward: Ward }) {
         </div>
 
         {rate !== null && <div className="mt-3"><Bar percent={rate} tone={tone === 'amber' ? 'amber' : tone === 'rose' ? 'rose' : 'brand'} /></div>}
+
+        {w.gate && (
+          <p className="mt-2.5 flex items-center gap-1.5 text-[11.5px] font-medium text-slate-700">
+            <IconGate className="h-3.5 w-3.5 text-brand-500" />
+            {w.gate.direction === 'in' ? 'Arrived' : 'Left'} at {w.gate.time}
+            <span className="text-ink-soft">· {w.gate.gate ?? 'front desk'}{w.gate.source === 'roll_call' ? ' · from class register' : ''}</span>
+          </p>
+        )}
+
+        {!w.gate && (
+          <p className="mt-2.5 flex items-center gap-1.5 text-[11.5px] text-slate-400">
+            <IconGate className="h-3.5 w-3.5" />No gate tap today — we alert you as soon as one is recorded.
+          </p>
+        )}
 
         {w.latest_result && (
           <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-ink-soft">

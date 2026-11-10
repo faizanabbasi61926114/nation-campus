@@ -97,13 +97,16 @@ class DashboardTest extends TestCase
         $this->assertSame(['accounts', 'fees', 'students'], $keys($this->accounts));
         $this->assertSame(['attendance', 'communication', 'exams', 'students'], $keys($this->teacher));
         $this->assertSame([
-            'accounts', 'admissions', 'attendance', 'audit', 'communication',
-            'exams', 'fees', 'hr', 'payroll', 'students',
+            'accounts', 'admissions', 'attendance', 'audit', 'communication', 'exams',
+            'fees', 'gate', 'hr', 'payroll', 'students',
         ], $keys($this->principal));
 
         // Staff attendance and leave counts stay with HR-permitted viewers.
         $this->assertNull($this->dashboard($this->teacher)['sections']['attendance']['staff']);
-        $this->assertSame(['marked', 'present', 'on_leave'], array_keys($this->dashboard($this->principal)['sections']['attendance']['staff']));
+        $this->assertSame(
+            ['marked', 'present', 'headcount', 'unmarked', 'present_percent', 'on_leave'],
+            array_keys($this->dashboard($this->principal)['sections']['attendance']['staff']),
+        );
     }
 
     public function test_head_office_sees_every_campus_and_a_campus_sees_only_its_own(): void

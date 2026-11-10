@@ -14,9 +14,10 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             UserSeeder::class,
             AcademicsSeeder::class,
-            AttendanceSeeder::class,
             ExamsSeeder::class,
             HrSeeder::class,
+            // After HR: the staff register is the HR list, so the records have to exist first.
+            AttendanceSeeder::class,
             AccountsSeeder::class,
             FeeSeeder::class,
             PayrollSeeder::class,

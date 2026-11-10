@@ -5,7 +5,7 @@ import { Screen } from './MobileShell'
 import { Bar, ListSkeleton } from './shellParts'
 import { useReloadOnRefresh } from './refresh'
 import { Badge, Btn, Card, Empty, Status } from '../components/ui'
-import { IconAttendance, IconChevronRight, IconExams, IconTimetable } from '../components/icons'
+import { IconAttendance, IconChevronRight, IconExams, IconMenu, IconTimetable } from '../components/icons'
 
 interface MyClass {
   date: string
@@ -110,8 +110,17 @@ export default function TeacherToday() {
         </Card>
       </section>
 
+      <Link to="/app/more" className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/72 px-4 py-3.5 shadow-[0_1px_2px_rgba(16,24,40,0.05)] ring-1 ring-black/[0.03] backdrop-blur-xl transition active:bg-brand-50/60">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><IconMenu className="h-[18px] w-[18px]" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[14px] font-semibold text-slate-900">All modules</span>
+          <span className="block text-[11px] text-ink-soft">Fees, staff, transport, hostel and every other record</span>
+        </span>
+        <IconChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+      </Link>
+
       <p className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-slate-400">
-        <IconTimetable className="h-3.5 w-3.5" />Full timetable, reports and records stay on the desktop workspace.
+        <IconTimetable className="h-3.5 w-3.5" />Same records, same permissions as the website.
       </p>
     </Screen>
   )

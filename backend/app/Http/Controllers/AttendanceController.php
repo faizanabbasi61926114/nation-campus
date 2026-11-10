@@ -3,17 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\AttendanceRecord;
-use App\Models\Section;
+use App\Models\Staff;
 use App\Models\Student;
-use App\Models\User;
+use App\Models\StudentEntry;
+use App\Services\GuardianNotifier;
 use App\Support\AttendanceDays;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
+    public function __construct(private GuardianNotifier $notifier)
+    {
+    }
+
     public function roster(Request $request): JsonResponse
     {
         if (! app(TenantContext::class)->campusId()) {
@@ -29,30 +35,53 @@ class AttendanceController extends Controller
         $date = $data['date'];
         $period = (int) ($data['period_no'] ?? 0);
 
-        if ($data['subject_type'] === 'student') {
-            $students = Student::where('section_id', $data['section_id'])->where('status', 'active')
-                ->orderBy('roll_no')->get(['id', 'roll_no', 'first_name', 'last_name']);
-        } else {
-            $ctx = app(TenantContext::class);
-            $students = User::where('organization_id', $ctx->organizationId)
-                ->where('is_active', true)
-                ->when($ctx->campusId(), fn ($q) => $q->where('campus_id', $ctx->campusId()))
-                ->orderBy('name')
-                ->get(['id', 'name']);
-        }
+        $rows = $data['subject_type'] === 'student'
+            ? $this->studentRoster((int) $data['section_id'])
+            : $this->staffRoster();
 
         $marked = AttendanceRecord::where('subject_type', $data['subject_type'])
             ->where('date', $date)->where('period_no', $period)
-            ->whereIn('subject_id', $students->pluck('id'))
+            ->whereIn('subject_id', array_column($rows, 'id'))
             ->pluck('status', 'subject_id');
 
         return response()->json([
-            'data' => $students->map(fn ($s) => array_merge($s->toArray(), [
-                'status' => $marked[$s->id] ?? null,
-                'marked' => $marked->has($s->id),
-            ])),
+            'data' => array_map(
+                fn (array $r) => $r + ['status' => $marked[$r['id']] ?? null, 'marked' => $marked->has($r['id'])],
+                $rows,
+            ),
             'period_no' => $period,
         ]);
+    }
+
+    private function studentRoster(int $sectionId): array
+    {
+        return Student::where('section_id', $sectionId)->where('status', 'active')
+            ->orderBy('roll_no')->get(['id', 'roll_no', 'first_name', 'last_name'])
+            ->map(fn (Student $s) => [
+                'id' => $s->id, 'roll_no' => $s->roll_no,
+                'first_name' => $s->first_name, 'last_name' => $s->last_name,
+                'name' => trim("$s->first_name $s->last_name"),
+            ])->all();
+    }
+
+    /**
+     * The staff register is the campus HR list — teachers, admin and support alike —
+     * not the set of accounts that can sign in, which excludes the guard and cleaner
+     * and used to include the parents' logins.
+     */
+    private function staffRoster(): array
+    {
+        return Staff::with('designation:id,name')
+            ->whereIn('status', ['active', 'probation'])
+            ->orderBy('first_name')->orderBy('last_name')
+            ->get()
+            ->map(fn (Staff $s) => [
+                'id' => $s->id,
+                'name' => trim("$s->first_name $s->last_name"),
+                'employee_no' => $s->employee_no,
+                'designation' => $s->designation?->name,
+                'department' => $s->department?->name,
+            ])->all();
     }
 
     public function mark(Request $request): JsonResponse
@@ -69,8 +98,19 @@ class AttendanceController extends Controller
             'records.*.status' => ['required', 'in:' . implode(',', AttendanceRecord::STATUSES)],
             'records.*.remarks' => 'nullable|string|max:255',
         ]);
-        $pool = $data['subject_type'] === 'student' ? Student::whereIn('id', collect($data['records'])->pluck('subject_id'))->pluck('id') : User::whereIn('id', collect($data['records'])->pluck('subject_id'))->pluck('id');
-        if ($pool->count() !== count(array_unique(collect($data['records'])->pluck('subject_id')->all()))) {
+        $subjectIds = collect($data['records'])->pluck('subject_id');
+        $isStaff = $data['subject_type'] === 'staff';
+        $user = $request->user();
+        // Two registers, two owners: teachers mark the class roll, HR and the principal mark the staff one.
+        if ($isStaff ? !$user->hasPermission('attendance.manage') : !$user->hasPermission('attendance.mark')) {
+            return response()->json(['message' => $isStaff
+                ? 'The staff register is kept by HR or the principal.'
+                : 'Only a class teacher may mark the register.'], 403);
+        }
+        $pool = $isStaff
+            ? Staff::whereIn('id', $subjectIds)->pluck('id')
+            : Student::whereIn('id', $subjectIds)->pluck('id');
+        if ($pool->count() !== count(array_unique($subjectIds->all()))) {
             return response()->json(['message' => 'One or more subjects do not exist in your campus.'], 422);
         }
         $ctx = app(TenantContext::class);
@@ -98,8 +138,37 @@ class AttendanceController extends Controller
                 );
                 $count++;
             }
+            if ($data['subject_type'] === 'student' && (int) $period === 0 && $data['date'] === now()->toDateString()) {
+                $this->recordRollCallArrivals(collect($data['records']), $markedBy);
+            }
         });
         return response()->json(['message' => "Marked attendance for $count " . ($period ? "period(s)" : 'record(s)')]);
+    }
+
+    /**
+     * A day register marked present today is proof the child was at school, so it fills
+     * the gate log for families whose campus has no desk tap. Period rolls are ignored:
+     * they say nothing about a child who was absent for the rest of the day.
+     */
+    private function recordRollCallArrivals(Collection $records, int $markedBy): void
+    {
+        $arrived = $records->whereIn('status', ['present', 'late'])->pluck('subject_id');
+        if ($arrived->isEmpty()) return;
+
+        $alreadyIn = StudentEntry::whereIn('student_id', $arrived)->where('direction', 'in')
+            ->whereDate('at', now()->toDateString())->pluck('student_id');
+
+        foreach ($arrived->diff($alreadyIn) as $studentId) {
+            $entry = StudentEntry::create([
+                'student_id' => $studentId,
+                'direction' => 'in',
+                'at' => now(),
+                'source' => 'roll_call',
+                'remarks' => 'Recorded from the class register',
+                'recorded_by' => $markedBy,
+            ]);
+            $this->notifier->entry($entry);
+        }
     }
 
     public function monthly(Request $request): JsonResponse
@@ -136,7 +205,9 @@ class AttendanceController extends Controller
                 ->get(['id', 'first_name', 'last_name'])
                 ->mapWithKeys(fn ($s) => [$s->id => trim("$s->first_name $s->last_name")]);
         } else {
-            $names = DB::table('users')->whereIn('id', $ids)->pluck('name', 'id');
+            $names = DB::table('staff')->whereIn('id', $ids)
+                ->get(['id', 'first_name', 'last_name'])
+                ->mapWithKeys(fn ($s) => [$s->id => trim("$s->first_name $s->last_name")]);
         }
 
         $summary = $rows->map(function ($r) use ($names, $threshold) {

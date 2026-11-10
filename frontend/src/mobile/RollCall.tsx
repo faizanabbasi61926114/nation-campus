@@ -5,6 +5,7 @@ import { api, apiError } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { Screen } from './MobileShell'
 import { Bar, DockBar, ListSkeleton, Segmented } from './shellParts'
+import { STATUS_CHOICES } from './statuses'
 import { useReloadOnRefresh } from './refresh'
 import { Btn, Card, Empty } from '../components/ui'
 import { toast } from '../store/toasts'
@@ -14,14 +15,6 @@ interface MyClass {
   sections: Array<{ id: number; name: string; class: string | null; students: number }>
   periods: Array<{ slot_id: number; period_no: number; section_id: number; subject: string | null; start_time: string }>
 }
-
-const CHOICES: Array<{ key: string; label: string; tone: string }> = [
-  { key: 'present', label: 'Present', tone: 'data-[on=true]:bg-brand-700 data-[on=true]:text-white data-[on=true]:ring-brand-700' },
-  { key: 'late', label: 'Late', tone: 'data-[on=true]:bg-amber-500 data-[on=true]:text-white data-[on=true]:ring-amber-500' },
-  { key: 'absent', label: 'Absent', tone: 'data-[on=true]:bg-rose-600 data-[on=true]:text-white data-[on=true]:ring-rose-600' },
-  { key: 'leave', label: 'Leave', tone: 'data-[on=true]:bg-sky-600 data-[on=true]:text-white data-[on=true]:ring-sky-600' },
-  { key: 'excused', label: 'Excused', tone: 'data-[on=true]:bg-slate-600 data-[on=true]:text-white data-[on=true]:ring-slate-600' },
-]
 
 export default function RollCall() {
   const [sp, setSp] = useSearchParams()
@@ -125,7 +118,7 @@ export default function RollCall() {
                 {!on && <span className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-300">unmarked</span>}
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {CHOICES.map((c) => (
+                {STATUS_CHOICES.map((c) => (
                   <button key={c.key} type="button" aria-pressed={on === c.key} data-on={on === c.key} onClick={() => setOne(r.id, c.key)}
                     className={`rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold ring-1 ring-inset ring-line-strong bg-white text-slate-500 transition active:scale-95 ${c.tone}`}>
                     {c.label}

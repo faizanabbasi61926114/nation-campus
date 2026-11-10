@@ -16,6 +16,7 @@ interface WardRef {
 
 const TABS = [
   { key: 'attendance', label: 'Attendance' },
+  { key: 'gate', label: 'Gate' },
   { key: 'fees', label: 'Fees' },
   { key: 'results', label: 'Results' },
 ]
@@ -55,6 +56,7 @@ export default function ChildDetail() {
             </div>
           </Card>
           {tab === 'attendance' && <AttendanceTab id={child.id} />}
+          {tab === 'gate' && <GateTab id={child.id} />}
           {tab === 'fees' && <FeesTab id={child.id} />}
           {tab === 'results' && <ResultsTab id={child.id} />}
         </>
@@ -130,6 +132,61 @@ function AttendanceTab({ id }: { id: number }) {
                 ))}
               </Card>
             </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+interface GateDays {
+  ward: { id: number; name: string }
+  days: Array<{
+    date: string; state: string
+    taps: Array<{ direction: string; time: string; gate: string | null; source: string; remarks: string | null }>
+  }>
+}
+
+/** The gate timeline: when the desk tapped the child in and out, day by day. */
+function GateTab({ id }: { id: number }) {
+  const { data, loading, error, reload } = useApi<{ data: GateDays }>(`/guardian/wards/${id}/entries`)
+  useReloadOnRefresh(reload)
+  const g = data?.data
+
+  return (
+    <div className="space-y-4">
+      {error && <Card className="p-3"><Row label={error} /></Card>}
+      {loading && <ListSkeleton rows={3} />}
+      {g && (
+        <>
+          {!g.days.length && (
+            <Card><Empty text="No gate record yet."
+              hint="The school front desk taps each child in and out. You also get a message here on the first arrival of the day." /></Card>
+          )}
+          {g.days.map((d) => (
+            <Card key={d.date} className="p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="nums text-[13.5px] font-semibold text-slate-900">{dayjs(d.date).format('dddd, D MMM')}</p>
+                <Badge tone={d.state === 'inside' ? 'green' : 'slate'} dot>{d.state === 'inside' ? 'inside at close' : 'gone home'}</Badge>
+              </div>
+              <div className="mt-2.5 space-y-2">
+                {d.taps.map((t, i) => (
+                  <div key={`${t.time}-${i}`} className="flex items-start gap-2.5">
+                    <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${t.direction === 'in' ? 'bg-brand-500' : 'bg-slate-300'}`} />
+                    <p className="min-w-0 flex-1 text-[12.5px] text-slate-700">
+                      <span className="font-semibold">{t.direction === 'in' ? 'Arrived' : 'Left'}</span>
+                      <span className="nums"> · {t.time}</span>
+                      <span className="text-ink-soft"> · {t.gate ?? 'front desk'}</span>
+                      {t.source === 'roll_call' && <span className="text-ink-soft"> · from the class register</span>}
+                      {t.remarks && <span className="mt-0.5 block text-[11.5px] italic text-ink-soft">“{t.remarks}”</span>}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+          {!!g.days.length && (
+            <p className="px-1 text-[11px] text-slate-400">Only the first arrival and the first departure of a day send you a message.</p>
           )}
         </>
       )}

@@ -7,7 +7,7 @@ import { fmtDate, fmtDateTime, fmtPKR } from '../lib/types'
 import { label } from '../lib/labels'
 import {
   IconAccounts, IconAdmissions, IconArrowRight, IconAttendance, IconAudit, IconChevronRight, IconDashboard,
-  IconExams, IconFees, IconMessages, IconPayroll, IconRefresh, IconStaff, IconStudents,
+  IconExams, IconFees, IconGate, IconMessages, IconPayroll, IconRefresh, IconStaff, IconStudents,
 } from '../components/icons'
 
 interface Alert { level: 'critical' | 'warning' | 'info'; module: string; text: string; link: string | null }
@@ -36,7 +36,14 @@ interface Sections {
       threshold: number; count: number
       students: { student_id: number; name: string; roll_no: string; days: number; present_percent: number }[]
     }
-    staff: { marked: number; present: number; on_leave: number } | null
+    staff: {
+      marked: number; present: number; headcount: number; unmarked: number
+      present_percent: number | null; on_leave: number
+    } | null
+  }
+  gate?: {
+    date: string; arrivals: number; departures: number; inside: number
+    expected: number; untapped: number; families_alerted: number
   }
   exams?: {
     upcoming: { id: number; name: string; type: string; start_date: string; end_date: string; status: string }[]
@@ -209,6 +216,17 @@ export default function Dashboard() {
     <Kpi key="attendance" label="Attendance today" icon={<IconAttendance />}
       value={s.attendance.present_percent === null ? 'Not marked yet' : `${s.attendance.present_percent}%`} tone="blue"
       hint={`${s.attendance.students_marked} of ${s.attendance.students_expected} marked`} to="/attendance" />)
+  if (s.attendance?.staff) kpis.push(
+    <Kpi key="staff-register" label="Staff present today" icon={<IconStaff />}
+      value={s.attendance.staff.present_percent === null ? 'Register open' : `${s.attendance.staff.present_percent}%`} tone="slate"
+      hint={s.attendance.staff.unmarked
+        ? `${s.attendance.staff.marked} of ${s.attendance.staff.headcount} marked · ${s.attendance.staff.unmarked} to go`
+        : `${s.attendance.staff.present} of ${s.attendance.staff.headcount} present`}
+      to="/hr/staff-attendance" />)
+  if (s.gate) kpis.push(
+    <Kpi key="gate" label="At the gate" icon={<IconGate />} tone="green"
+      value={s.gate.inside === 1 ? '1 child inside' : `${s.gate.inside} inside`}
+      hint={`${s.gate.arrivals} in · ${s.gate.families_alerted} family alert(s)`} to="/gate" />)
   if (s.fees) kpis.push(
     <Kpi key="outstanding" label="Outstanding fees" value={fmtPKR(s.fees.outstanding)} icon={<IconFees />} tone="amber"
       hint={`${s.fees.overdue_invoices} overdue invoice(s)`} to="/fees" />)
@@ -289,6 +307,20 @@ export default function Dashboard() {
               <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400" />below {s.attendance.at_risk.threshold}%</span>
               <span className="ml-auto">{s.attendance.at_risk.count} pupil(s) at risk</span>
             </div>
+          </Section>
+        )}
+
+        {s.gate && (
+          <Section title="At the gate today" to="/gate" icon={<IconGate />}>
+            <DataList rows={[
+              ['Tapped in', s.gate.arrivals],
+              ['Still inside', s.gate.inside],
+              ['Never tapped', `${s.gate.untapped} of ${s.gate.expected} enrolled`],
+              ['Family alerts sent', s.gate.families_alerted],
+            ]} />
+            <p className="mt-3 text-xs text-ink-soft">
+              The first arrival and the first departure of a day each send one in-app alert to the family.
+            </p>
           </Section>
         )}
 

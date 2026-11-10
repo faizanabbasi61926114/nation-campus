@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\AttendanceRecord;
 use App\Models\Campus;
 use App\Models\Section;
+use App\Models\Staff;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -43,11 +44,12 @@ class AttendanceSeeder extends Seeder
             }
         }
 
-        // Staff attendance for campus users
-        foreach (User::where('campus_id', $lhr->id)->where('is_active', true)->get() as $ui => $user) {
+        // Staff attendance for the campus register, which is the HR list: the security
+        // guard and the cleaner are on it even though neither of them signs in.
+        foreach (Staff::where('campus_id', $lhr->id)->whereIn('status', ['active', 'probation'])->orderBy('id')->get() as $ui => $member) {
             foreach ($days as $di => $date) {
                 AttendanceRecord::updateOrCreate(
-                    ['subject_type' => 'staff', 'subject_id' => $user->id, 'date' => $date, 'period_no' => 0],
+                    ['subject_type' => 'staff', 'subject_id' => $member->id, 'date' => $date, 'period_no' => 0],
                     ['organization_id' => 1, 'campus_id' => $lhr->id, 'status' => $statuses[($ui * 5 + $di) % count($statuses)], 'marked_by' => $teacher?->id],
                 );
             }

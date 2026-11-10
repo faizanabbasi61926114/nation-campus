@@ -35,6 +35,11 @@ class GuardianController extends Controller
             ->orderByDesc('id')->get(['subject_id', 'status'])
             ->groupBy('subject_id')->map(fn (Collection $g) => $g->first()->status);
 
+        $gate = DB::table('student_entries')->where('organization_id', $org)
+            ->whereIn('student_id', $ids)->whereDate('at', $today)
+            ->orderBy('at')->orderBy('id')->get(['student_id', 'direction', 'at', 'gate', 'source'])
+            ->groupBy('student_id')->map->last();
+
         $fees = DB::table('fee_invoices')
             ->where('organization_id', $org)->whereIn('student_id', $ids)
             ->whereNotIn('status', ['cancelled', 'waived'])
@@ -47,10 +52,11 @@ class GuardianController extends Controller
         $results = $this->publishedResults($org, $ids)->groupBy('student_id')->map->first();
         $facts = $this->wardFacts($wards);
 
-        return response()->json(['data' => $wards->map(function (Student $w) use ($monthly, $markedToday, $fees, $results, $facts, $month) {
+        return response()->json(['data' => $wards->map(function (Student $w) use ($monthly, $markedToday, $fees, $results, $facts, $gate, $month) {
             $summary = $monthly->get($w->id)?->get($month);
             $fee = $fees->get($w->id);
             $result = $results->get($w->id);
+            $tap = $gate->get($w->id);
             $balance = $fee ? round(max(0, (float) $fee->billed - (float) $fee->paid), 2) : 0.0;
             return [
                 'id' => $w->id,
@@ -61,6 +67,13 @@ class GuardianController extends Controller
                 ...$facts->get($w->id),
                 'attendance' => $summary ? $this->percentage($summary) : null,
                 'today' => $markedToday->get($w->id),
+                'gate' => $tap ? [
+                    'direction' => $tap->direction,
+                    'at' => $tap->at,
+                    'time' => \Carbon\Carbon::parse($tap->at)->isoFormat('h:mm A'),
+                    'gate' => $tap->gate,
+                    'source' => $tap->source,
+                ] : null,
                 'fees' => [
                     'billed' => (float) ($fee->billed ?? 0),
                     'paid' => (float) ($fee->paid ?? 0),
@@ -113,6 +126,38 @@ class GuardianController extends Controller
             'days' => $days,
             'trend' => $byMonth->map(fn ($r, $ym) => ['month' => $ym] + $this->percentage($r))->values(),
         ]]);
+    }
+
+    /**
+     * GET /guardian/wards/{student}/entries — the gate log for one child, day by day.
+     * A family reads this to see the tap times the alert only summarised.
+     */
+    public function entries(Request $request, int $student): JsonResponse
+    {
+        $ward = $this->assertWard($request, $student);
+
+        $taps = DB::table('student_entries')
+            ->where('organization_id', (int) $ward->organization_id)
+            ->where('student_id', $ward->id)
+            ->orderByDesc('at')->orderByDesc('id')->limit(200)
+            ->get(['direction', 'at', 'gate', 'source', 'remarks']);
+
+        $days = $taps->groupBy(fn (object $r) => substr($r->at, 0, 10))->map(function (Collection $day, string $date) {
+            return [
+                'date' => $date,
+                // Newest tap decides where the child is at the end of the day.
+                'state' => $day->first()->direction === 'in' ? 'inside' : 'away',
+                'taps' => $day->map(fn (object $r) => [
+                    'direction' => $r->direction,
+                    'time' => \Carbon\Carbon::parse($r->at)->isoFormat('h:mm A'),
+                    'gate' => $r->gate,
+                    'source' => $r->source,
+                    'remarks' => $r->remarks,
+                ])->values()->all(),
+            ];
+        })->values();
+
+        return response()->json(['data' => ['ward' => $this->wardRef($ward), 'days' => $days]]);
     }
 
     /** GET /guardian/wards/{student}/fees */
