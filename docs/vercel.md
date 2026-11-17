@@ -49,7 +49,8 @@ Add your domain under **Settings → Domains**; Vercel issues the certificate.
 
 ## 2. Prepare the API host
 
-Any host that runs PHP 8.3, PHP-FPM, nginx and MySQL works — the Oracle Always Free VM, a small VPS, or
+Any host that runs PHP 8.4 or newer, PHP-FPM, nginx and MySQL works — the Oracle Always Free VM, a
+small VPS, or
 a colocation box. [deploy/nginx-cms.conf](../deploy/nginx-cms.conf) is a complete server block for it:
 copy it, change `server_name` and `root`, run certbot, and match the PHP-FPM socket to `php -v`. The
 security and cache commands are in [README.md §6](../README.md). Three items are specific to sitting

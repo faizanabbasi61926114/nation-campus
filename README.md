@@ -5,7 +5,7 @@ database, with every record scoped to an organization and, where it matters, to 
 
 | Layer | Choice |
 | --- | --- |
-| API | PHP 8.3, Laravel 13, Sanctum 4 token auth |
+| API | PHP 8.4, Laravel 13, Sanctum 4 token auth |
 | Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4 |
 | Database | MySQL 8.4 (SQLite in-memory for tests) |
 | Tenancy | Organization → campuses, resolved per request from the token and `X-Campus-Id` |
@@ -174,7 +174,9 @@ storable in the settings table, because `/settings` is readable by anyone with `
 ## 6. Operations
 
 - **Scheduler**: one entry, `announcements:publish-due` every fifteen minutes
-  (`bootstrap/app.php`). Add `* * * * * php artisan schedule:run` to cron on the app server.
+  (`bootstrap/app.php`). The compose stack runs it as its own `scheduler` service via
+  `php artisan schedule:work`; on a non-Docker install, add
+  `* * * * * php artisan schedule:run` to cron on the app server.
 - **Clock**: `config/app.php` reads `APP_TIMEZONE` and defaults to `Asia/Karachi`, so `now()`, daily
   attendance cutoffs and "today" reports all roll at Pakistan midnight. MySQL containers normally run
   UTC, so no query uses a DB-side `NOW()` — every clock read goes through Carbon, and the naive local
@@ -185,15 +187,17 @@ storable in the settings table, because `/settings` is readable by anyone with `
 - **Production `.env`**: `APP_ENV=production`, `APP_DEBUG=false`, a real `APP_URL`,
   `SESSION_SECURE_COOKIE=true`, queue driver `database` or `redis`, and a distinct database user per
   environment with no `FILE` privileges.
-- **Web server**: [`deploy/nginx-cms.conf`](deploy/nginx-cms.conf) is a ready server block for
+- **Deploying to the internet**: [`docs/oracle.md`](docs/oracle.md) is the recommended shape — one
+  Dockerfile, one `docker compose up`, and the SPA and API served from the same origin by the app
+  container, so nothing needs a `VITE_API_URL` or a CDN rewrite. [`docs/vercel.md`](docs/vercel.md)
+  covers the split alternative (SPA on Vercel, API on a host you control); if you take it, set
+  `TRUSTED_PROXIES` on the API host (see `backend/config/trustedproxy.php`) or the audit log records
+  the edge's address instead of the visitor's.
+- **Web server**: the Docker image configures nginx itself in [`docker/default.conf`](docker/default.conf).
+  For a non-Docker install, [`deploy/nginx-cms.conf`](deploy/nginx-cms.conf) is a ready server block for
   `backend/public` with `try_files $uri /index.php?$query_string`, HSTS and nosniff headers, dotfile
-  denial, and the `/up` liveness route. For a single-box install, add a second block whose root is
-  `frontend/dist` with `try_files $uri /index.html;` so client-side routes survive a refresh.
-- **Deploying to the internet**: [`docs/vercel.md`](docs/vercel.md) walks the split that suits this stack —
-  the SPA on Vercel, where `frontend/vercel.json` rewrites hold `/api/*` to one origin, and Laravel plus
-  MySQL on any host you control. Set `TRUSTED_PROXIES` on the API host when you do that (see
-  `backend/config/trustedproxy.php`), or the audit log records the edge's address instead of the
-  visitor's. Running both halves behind nginx on one box stays the simpler option.
+  denial, and the `/up` liveness route. Client-side deep links resolve through the catch-all in
+  `backend/routes/web.php`, which answers with `public/index.html` when the SPA has been built into it.
 - **HTTPS/HSTS** in front of both, and rate limiting is already applied to `auth/login`.
 
 ## 7. Known gaps

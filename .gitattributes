@@ -1,0 +1,12 @@
+# Core line-ending rule for this repo: the files below are read inside a Linux container, and
+# a CRLF shebang line ("#!/bin/sh\r") makes the entrypoint fail with "no such file or
+# directory" on a host that checks out with core.autocrlf=true. Pinning eol=lf means the same
+# clone builds correctly from Windows, macOS or the VM itself.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker/* text eol=lf
+docker-compose.yml text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
+.env.example text eol=lf
+deploy/compose.env.example text eol=lf

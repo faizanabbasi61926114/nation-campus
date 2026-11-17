@@ -1,0 +1,5 @@
+# {$CMS_DOMAIN} comes from the compose .env. Caddy answers on 80, gets a Let's Encrypt
+# certificate automatically, and redirects HTTP to HTTPS on its own.
+{$CMS_DOMAIN:localhost} {
+	reverse_proxy app:8080
+}

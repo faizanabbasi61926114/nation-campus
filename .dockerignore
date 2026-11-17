@@ -1,0 +1,28 @@
+# The build context is the whole repository, so anything that must not reach the image
+# is listed here rather than trusted to the two COPY lines in the Dockerfile.
+.git
+.gitignore
+.vscode
+.env
+.env.*
+!.env.example
+
+backend/.env
+backend/.env.*
+backend/storage/logs
+backend/storage/framework/cache/data
+backend/storage/framework/sessions
+backend/storage/framework/views
+backend/vendor
+backend/node_modules
+backend/tests
+
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+vibe_images
+deploy
+docs
+HOW-TO-RUN.md
+README.md

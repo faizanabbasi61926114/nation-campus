@@ -1,0 +1,5 @@
+# Deploy host secrets. docker compose reads ./.env on the server; it holds APP_KEY and the
+# database passwords, and belongs to the machine, not to the repository.
+.env
+.env.*
+!.env.example
