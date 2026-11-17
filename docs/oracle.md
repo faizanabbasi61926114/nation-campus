@@ -17,13 +17,14 @@ visitor ── https://cms.example.edu.pk ──▶ caddy :80/:443
 **Read the shape note before you pick anything.** The Ampere A1 free capacity — 4 OCPUs and 24 GB of
 ARM — is only reservable once the account is **upgraded to Pay-As-You-Go**, even though usage inside
 the free limits still bills at zero. A Free-tier-only account is not offered the ARM shapes at all.
-What it does get is `VM.Standard.E2.1.Micro`: x86_64, 1 OCPU, 1 GB RAM, two instances allowed. This
-guide targets that box, because it needs no card:
+What it does get is `VM.Standard.E2.1.Micro`: x86_64, **1/8 OCPU**, 1 GB RAM, two instances allowed.
+That is a deliberately understated machine — it is CPU-throttled by design — and section 4 shows how to
+deploy onto it without ever asking it to compile anything. This guide targets it because it needs no card:
 
 | Setting | Value | Why |
 | --- | --- | --- |
 | Image | **Ubuntu 24.04** (or Oracle Linux 9) | `apt`/`yum` both work; Ubuntu has the widest Docker docs |
-| Shape | **VM.Standard.E2.1.Micro** | the only Always Free compute available without upgrading |
+| Shape | **VM.Standard.E2.1.Micro** | 1/8 OCPU / 1 GB — the only Always Free compute without an upgrade |
 | Boot volume | 200 GB | Always Free block storage ceiling; backups land here |
 | Public IP | **Ephemeral** — the only option here | it changes on every stop/start; see the warning below |
 | SSH keys | paste this public key | Oracle refuses password auth on the console |
@@ -58,7 +59,7 @@ under `/data/caddy/pki/authorities/local/` and the site answers over TLS.
 
 That works, but every device sees an untrusted issuer, and the consequence for the phone app is
 specific rather than cosmetic: **Chrome will not register a service worker over a certificate it does
-trust**, so the install prompt never appears and `/app` degrades to a ordinary browser tab. Two ways
+trust**, so the install prompt never appears and `/app` degrades to an ordinary browser tab. Two ways
 to get the real thing:
 
 1. **Trust Caddy's root CA on the device.** Export it once from the VM
@@ -83,10 +84,10 @@ sudo usermod -aG docker $USER   # log out and back in for the group to take effe
 docker --version && docker compose version
 ```
 
-**Add swap before the first build.** The box has 1 GB of RAM and the build stages want more than
-that: `npm ci` and the PHP `intl` compile together will get the build container OOM-killed, which
-looks like a mysterious `exit code 137` rather than an error. Four gigabytes on the boot volume costs
-nothing and is only borrowed:
+**Add swap anyway.** The box has 1 GB of RAM. If you follow section 4 the image arrives prebuilt and
+nothing compiles here, but MySQL, PHP-FPM, nginx and Caddy still share that gigabyte, and a
+`mysqldump` of a school with years of records is the other moment that spikes. Four gigabytes on the
+boot volume costs nothing and is only borrowed:
 
 ```bash
 sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
@@ -101,32 +102,39 @@ if `get.docker.com` reports a locked dpkg, wait and re-run rather than killing i
 
 ## 4. Put the code on the VM
 
-Build on the VM. `VM.Standard.E2.1.Micro` is x86_64, the same architecture as this laptop, so a saved
-image would technically run — but if you later take an Ampere A1 instance it is ARM64 and that tarball
-would not, whereas the source bundle runs anywhere. Source is the portable artifact; the image is
-throwaway.
+Do **not** build on the micro instance. At 1/8 OCPU the PHP extension compile is not a 20-minute job but
+a multi-hour one, and it is the most CPU-hungry thing this project does. The laptop already built that
+image, `VM.Standard.E2.1.Micro` is the same x86_64 architecture, and the whole thing transfers in seconds:
 
 ```bash
-git clone <your-repository-url> ~/cms
-cd ~/cms
+docker save cms-app:latest | gzip > cms-app.tar.gz      # 74 MB
+scp cms-app.tar.gz cms-src.tar.gz ubuntu@<public-ip>:~
 ```
 
-**No repository yet?** The deploy does not need one. From the laptop, `git archive` makes a
-commit-pinned bundle of exactly the tracked files — source only, no `vendor/`, no `node_modules/`, no
-`.env`:
+On the VM:
 
 ```bash
-git archive --format=tar.gz -o cms-src.tar.gz HEAD      # about 1 MB
-scp cms-src.tar.gz ubuntu@<public-ip>:~
+mkdir -p ~/cms && tar -xzf ~/cms-src.tar.gz -C ~/cms     # compose file, docs, env template
+gunzip -c ~/cms-app.tar.gz | docker load                 # Loaded image: cms-app:latest
 ```
 
-Then on the VM:
+Ship the source bundle alongside the image, not instead of it: compose, `deploy/compose.env.example` and
+these docs live in it, and it is what you re-scp when something changes. It is also the only path that
+works on an Ampere A1 box, which is ARM64 — there, delete the `--build`-free shortcut and let the VM
+compile, or better, cross-build with `docker buildx build --platform linux/arm64 --output type=docker`.
+
+**Where `cms-src.tar.gz` comes from.** The deploy needs no git remote: `git archive` bundles exactly the
+tracked files — source only, no `vendor/`, no `node_modules/`, no `.env` — and it is pinned to a commit,
+so the VM always gets what was tested:
 
 ```bash
-mkdir -p ~/cms && tar -xzf ~/cms-src.tar.gz -C ~/cms
+git archive --format=tar.gz -o cms-src.tar.gz HEAD       # about 1 MB
 ```
 
-A later deploy is the same two commands with a fresh bundle, and the old one stays in
+Once the repository exists on GitHub, replace both scp lines with `git clone <url> ~/cms` and keep only
+the `docker load` for the image.
+
+A later deploy is the same two files and the same three commands, and the previous bundle stays in
 `~/cms` untouched until you overwrite it — which is why the image, not the folder, is the unit of
 rollback.
 
@@ -151,19 +159,22 @@ section 2 — the warning is expected, not a failed install.
 
 `.env` belongs to the machine and is git-ignored. It is the only file you edit.
 
-## 5. Build and start
+## 5. Start
 
 ```bash
-docker compose up -d --build     # first build compiles the SPA and installs composer deps
+docker compose up -d             # the image is already loaded, so nothing compiles here
 docker compose ps                # app (healthy), mysql (healthy), caddy, scheduler
 docker compose logs --tail=50 app
 ```
 
-Expect the first `--build` to take a while on this shape — 20 to 40 minutes on a single OCPU, because
-the PHP `intl` and opcache compiles are CPU-bound and `npm ci` runs in the same stage. It happens
-once: every later build reuses those layers, so a routine deploy is the SPA and API copy steps only,
-which take seconds. If a build stage dies with exit code 137, that is the OOM killer and swap
-(section 3) is the fix, not a retry.
+First start pulls only `mysql:8.4` and `caddy:2-alpine` — about 300 MB — and the app becomes healthy
+within 40 seconds. `docker compose ps` should show `app` as `(healthy)` before you try the login page;
+the healthcheck is the `/up` route, so a green app means nginx, PHP-FPM, Laravel and MySQL all answered.
+
+If you are on an ARM shape and had to build here instead, use `docker compose up -d --build` and expect
+the first run to take 20-40 minutes: the `intl` and opcache compiles are CPU-bound and `npm ci` runs in
+the same stage. It happens once, because every later build reuses those layers. A build stage killed with
+exit code 137 is the OOM killer, and swap (section 3) is the fix, not a retry.
 
 Then run the schema:
 
@@ -216,15 +227,23 @@ Restore is
 
 ## 8. Shipping a change
 
+The laptop is the build machine, so a deploy is three commands on the laptop and two on the VM:
+
 ```bash
-cd ~/cms
-git pull
-docker compose up -d --build          # rebuilds the image with the new SPA and API
-docker compose exec app php artisan migrate --force   # only when a migration ships
+# on the laptop
+docker build -t cms-app:latest .                          # seconds, once layers are cached
+git archive --format=tar.gz -o cms-src.tar.gz HEAD
+docker save cms-app:latest | gzip > cms-app.tar.gz
+scp cms-app.tar.gz cms-src.tar.gz ubuntu@<public-ip>:~
+
+# on the VM
+tar -xzf ~/cms-src.tar.gz -C ~/cms && gunzip -c ~/cms-app.tar.gz | docker load
+cd ~/cms && docker compose up -d
+docker compose exec app php artisan migrate --force       # only when a migration ships
 ```
 
-Without a repository, replace `git pull` with the same bundle-and-extract pair from section 4 —
-`scp` the new `cms-src.tar.gz`, `tar -xzf` it over `~/cms`, then build.
+With a repository you would `git pull` instead of re-scping the bundle; the image still arrives as a
+tarball, because the micro instance should never compile.
 
 The old image stays until the new containers are healthy, so a rollback is
 `docker compose up -d` against the previous tag. There is no host-side `npm` or `composer` install

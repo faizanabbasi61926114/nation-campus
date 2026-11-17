@@ -189,7 +189,9 @@ storable in the settings table, because `/settings` is readable by anyone with `
   environment with no `FILE` privileges.
 - **Deploying to the internet**: [`docs/oracle.md`](docs/oracle.md) is the recommended shape — one
   Dockerfile, one `docker compose up`, and the SPA and API served from the same origin by the app
-  container, so nothing needs a `VITE_API_URL` or a CDN rewrite. [`docs/vercel.md`](docs/vercel.md)
+  container, so nothing needs a `VITE_API_URL` or a CDN rewrite. It also needs no repository: a
+  `git archive` bundle plus a `docker save` tarball is the whole transfer, which matters because the
+  Always Free micro shape should not be asked to compile anything. [`docs/vercel.md`](docs/vercel.md)
   covers the split alternative (SPA on Vercel, API on a host you control); if you take it, set
   `TRUSTED_PROXIES` on the API host (see `backend/config/trustedproxy.php`) or the audit log records
   the edge's address instead of the visitor's.
