@@ -18,9 +18,18 @@ services:
 
   # MySQL is reachable only on the compose network: no published port, so the
   # database never faces the internet even if the VM security list is wrong.
+  # The memory flags are for Oracle's 1 GB Always Free micro shape, where the defaults
+  # (128 MB buffer pool plus a ~400 MB performance_schema) are what pushes mysqld into the
+  # OOM killer. On a larger box they are harmless: the pool just stays small.
   mysql:
     image: mysql:8.4
     restart: unless-stopped
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --innodb-log-buffer-size=8M
+      - --performance-schema=OFF
+      - --max-connections=60
+      - --table-open-cache=400
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
       MYSQL_USER: ${DB_USERNAME}
