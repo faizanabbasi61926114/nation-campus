@@ -35,11 +35,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
+        # No `cache: gradle` here: the android/ directory is generated further down, so at
+        # this point there is no build.gradle for the cache step to hash and it fails the job.
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
