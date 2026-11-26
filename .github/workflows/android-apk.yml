@@ -1,0 +1,114 @@
+name: Android APK
+
+# The APK is built here rather than on a laptop: this machine has no JDK and no Android SDK.
+# Everything the app needs is compiled from this repo — the bundle ships inside the APK, so
+# the only thing that has to be reachable is the Laravel API given as `api_url`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Absolute Laravel base URL the app calls, including /api/v1'
+        required: true
+        default: 'http://192.168.100.49:8000/api/v1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Assemble debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+          log-approved-licenses: true
+
+      - name: Install web dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build the web bundle
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_CMS_API_URL: ${{ inputs.api_url }}
+
+      - name: Generate the Android project
+        working-directory: frontend
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      # Capacitor only writes usesCleartextTraffic on its Cordova compatibility path, and the
+      # stock template omits it, so Android 9+ would refuse the plain-HTTP API outright.
+      - name: Permit plain HTTP to the API host
+        working-directory: frontend/android
+        run: |
+          manifest=app/src/main/AndroidManifest.xml
+          grep -q 'android:usesCleartextTraffic' "$manifest" ||
+            sed -i 's|^\( *\)<application$|\1<application\n\1    android:usesCleartextTraffic="true"|' "$manifest"
+          grep -q 'android:usesCleartextTraffic="true"' "$manifest" || {
+            echo "the API host is ${{ inputs.api_url }} and the manifest still forbids cleartext"
+            exit 1
+          }
+
+      # Cosmetic: a branded launcher icon. Losing it leaves the default Capacitor icon and a
+      # working APK, so it must never fail the build.
+      - name: Brand the launcher icon
+        working-directory: frontend
+        continue-on-error: true
+        run: |
+          mkdir -p assets
+          cp public/icons/icon-1024.png assets/icon.png
+          npx @capacitor/assets generate --android --assetPath=assets \
+            --iconBackgroundColor '#245442' --splashBackgroundColor '#245442'
+
+      - name: Assemble the debug APK
+        working-directory: frontend/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Collect the APK
+        run: |
+          mkdir -p out
+          cp frontend/android/app/build/outputs/apk/debug/app-debug.apk "out/nation-campus-run-${{ github.run_number }}-debug.apk"
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nation-campus-apk
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: What to do next
+        run: |
+          echo "### APK ready"
+          echo "Download \`nation-campus-run-${{ github.run_number }}-debug.apk\` from this run's **Artifacts** box."
+          echo "It calls \`${{ inputs.api_url }}\`, so that host must be listening on the phone's network."
+          echo "Built for Android 7.0 (API 24) and above; debug-signed, so enable *Install unknown apps* for whatever opens it."

@@ -1,7 +1,12 @@
 import axios from 'axios'
 
+// In the browser the path is enough because Vite (and Caddy in production) proxy /api
+// to Laravel from the same origin. The APK has no such proxy: its pages come from the
+// bundled http://localhost, so it needs VITE_CMS_API_URL set to an absolute origin.
+const apiBase = import.meta.env.VITE_CMS_API_URL ?? '/api/v1'
+
 export const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: apiBase,
   headers: { Accept: 'application/json' },
 })
 
